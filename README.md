@@ -58,6 +58,50 @@ flowchart TD
 
 ---
 
+## 📸 Program Interface & Screenshots
+
+### 1. Security Operations Center (SOC) Command & Overview
+The centralized command console displaying live camera and microphone health, phone hardware battery/temperature telemetry, 8-state motion video recording engine, and dedicated real-time detection & AI classification cards.
+
+![SOC Command Overview](docs/screenshots/01_soc_command_overview.png)
+
+---
+
+### 2. Live Cinema Monitoring & Floating HUD
+High-framerate video monitoring workspace with floating detection alerts (`🚨 PERSON 83%`), recording status HUD (`REC 18s (Seg #1)`), stream format selection (MJPEG/Canvas), and hardware exposure controls console.
+
+![Live Cinema Monitoring](docs/screenshots/02_live_cinema_monitoring.png)
+
+---
+
+### 3. Detection & Classification Center
+Live target tracker synchronizing MOG2 motion background subtraction with YOLOv8n ONNX deep learning inference, spatial verification masks, and real-time sensitivity controls.
+
+![Detection Center](docs/screenshots/03_detection_center_tracker.png)
+
+---
+
+### 4. Forensic Incident Inspection & High-Sharpness Extracts
+Chronological multi-frame incident inspection displaying initial, change, and final snapshot evidence alongside Laplacian variance-scored high-sharpness video extractions.
+
+![Incident Inspection Modal](docs/screenshots/04_incident_inspection_modal.png)
+
+---
+
+### 5. Hardware Controls, Audio & Automation Settings
+Comprehensive system configuration covering video segment duration caps (60s), inactivity timers (15s), phone audio analysis, and cryptographic PIN access control.
+
+![System Settings Console](docs/screenshots/05_system_settings_console.png)
+
+---
+
+### 6. Native Device & Browser Notification Center
+Audited event delivery channel dispatching instant alerts with snapshot thumbnails to desktop and mobile notification centers via Service Workers and SSE streams.
+
+![Device Notifications Center](docs/screenshots/06_device_notifications_center.png)
+
+---
+
 ## 🌟 Upgraded Subsystems & Features
 
 ### 1. Dedicated Phone Microphone Integration (Phase 2)
@@ -94,7 +138,16 @@ flowchart TD
   9. System Diagnostics Modal with comprehensive subsystem health status.
   10. PIN Security & System Settings.
 
-### 5. Database, Storage & Backup (Phases 6–8)
+### 5. Motion Video Recording & Decoupled Background Processing (Phase 6)
+* **Immediate Motion Trigger:** Starts recording video immediately upon camera motion without waiting for AI inference.
+* **60-Second Segment Rotation:** Automatically rotates segments upon exceeding 60s of continuous motion under the same incident session without losing frames.
+* **15-Second Inactivity Countdown:** Continues recording during brief stillness, resetting on every new motion event.
+* **Persistent SQLite Queue:** Enqueues closed videos (`QUEUED`) and processes them asynchronously via `VideoProcessorWorker`.
+* **High-Sharpness Image Extraction:** Computes Laplacian variance scores to select the sharpest frames and links them to the incident session.
+* **Strict Verification Before Deletion:** Validates file sizes, image headers, and OpenCV decodability on disk before safely deleting source MP4 files.
+* **8-State Engine Telemetry:** Real-time visibility across `IDLE`, `RECORDING`, `FINALIZING`, `QUEUED`, `PROCESSING`, `VERIFYING`, `COMPLETED`, and `FAILED` states.
+
+### 6. Database, Storage & Backup (Phases 7–8)
 * **SQLite Integrity & Persistence:** Table `events` preserves incident history across reboots.
 * **Point-in-Time Hot Backup:** SQLite Online Backup API creates consistent point-in-time snapshots (`POST /api/storage/backup`) into `storage/backups/`.
 * **Automated Retention:** 14-day rolling retention and storage quotas protect active, ongoing incidents from deletion.
