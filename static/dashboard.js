@@ -282,6 +282,11 @@
     DOM.eventDetailTimestamp = document.getElementById('eventDetailTimestamp');
     DOM.eventDetailConfidence = document.getElementById('eventDetailConfidence');
     DOM.eventDetailLabel = document.getElementById('eventDetailLabel');
+    DOM.eventDetailMotionRatio = document.getElementById('eventDetailMotionRatio');
+    DOM.eventDetailBbox = document.getElementById('eventDetailBbox');
+    DOM.sideInitialTime = document.getElementById('sideInitialTime');
+    DOM.sideFinalTime = document.getElementById('sideFinalTime');
+    DOM.stageFrameIndicator = document.getElementById('stageFrameIndicator');
     DOM.eventDetailJson = document.getElementById('eventDetailJson');
     DOM.downloadEventImgBtn = document.getElementById('downloadEventImgBtn');
     DOM.deleteEventBtn = document.getElementById('deleteEventBtn');
@@ -917,8 +922,8 @@
       );
 
       return `
-        <div class="incident-card" data-event-id="${ev.id}">
-          <div class="incident-thumb-box" onclick="window.PySurveillance.inspectEvent(${ev.id})">
+        <div class="incident-card" data-event-id="${ev.id}" onclick="window.PySurveillance.inspectEvent(${ev.id})">
+          <div class="incident-thumb-box">
             <img src="${imgSrc}" alt="Incident ${ev.id}" loading="lazy" onerror="this.src='/static/favicon.svg'">
             ${hasMultiFrame ? '<span class="incident-tag-pill">2-FRAME COMPARE</span>' : ''}
           </div>
@@ -934,8 +939,8 @@
             </div>
           </div>
           <div class="incident-card-actions">
-            <button class="btn btn-outline btn-sm" onclick="window.PySurveillance.inspectEvent(${ev.id})">🔍 Inspect</button>
-            <button class="btn btn-outline btn-danger btn-sm" onclick="window.PySurveillance.deleteEvent(${ev.id})">🗑️</button>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); window.PySurveillance.inspectEvent(${ev.id})">🔍 Inspect</button>
+            <button class="btn btn-outline btn-danger btn-sm" onclick="event.stopPropagation(); window.PySurveillance.deleteEvent(${ev.id})">🗑️</button>
           </div>
         </div>
       `;
@@ -990,11 +995,16 @@
       if (DOM.comparisonTabBar) {
         DOM.comparisonTabBar.style.display = hasBoth ? 'flex' : 'none';
       }
+      if (DOM.btnCompInitial && DOM.btnCompFinal && DOM.btnCompSideBySide) {
+        DOM.btnCompInitial.classList.remove('active');
+        DOM.btnCompFinal.classList.add('active');
+        DOM.btnCompSideBySide.classList.remove('active');
+      }
       if (DOM.sideBySideContainer) {
         DOM.sideBySideContainer.style.display = 'none';
       }
       if (DOM.singleImgContainer) {
-        DOM.singleImgContainer.style.display = 'block';
+        DOM.singleImgContainer.style.display = 'flex';
       }
 
       if (DOM.eventDetailImg) DOM.eventDetailImg.src = finalSrc || initialSrc || '/static/favicon.svg';
@@ -1005,9 +1015,65 @@
         DOM.eventDetailCategory.className = `badge ${getCategoryBadgeClass(ev.category)}`;
         DOM.eventDetailCategory.textContent = ev.category || 'Motion';
       }
-      if (DOM.eventDetailTimestamp) DOM.eventDetailTimestamp.textContent = ev.timestamp ? new Date(ev.timestamp).toLocaleString() : '--';
-      if (DOM.eventDetailConfidence) DOM.eventDetailConfidence.textContent = ev.confidence ? `${(ev.confidence * 100).toFixed(1)}%` : '--%';
-      if (DOM.eventDetailLabel) DOM.eventDetailLabel.textContent = ev.label || '--';
+      if (DOM.eventDetailConfidence) {
+        DOM.eventDetailConfidence.textContent = ev.confidence ? `${(ev.confidence * 100).toFixed(1)}%` : '--%';
+      }
+      if (DOM.eventDetailTimestamp) {
+        DOM.eventDetailTimestamp.textContent = ev.timestamp ? new Date(ev.timestamp).toLocaleString() : '--';
+      }
+      if (DOM.eventDetailLabel) {
+        DOM.eventDetailLabel.textContent = ev.label || ev.category || '--';
+      }
+
+      // Detection & Motion details
+      const det = (ev.details && Array.isArray(ev.details.detections) && ev.details.detections.length > 0) ? ev.details.detections[0] : null;
+      if (DOM.eventDetailMotionRatio) {
+        if (det && det.motion_ratio !== undefined && det.motion_ratio !== null) {
+          DOM.eventDetailMotionRatio.textContent = `${(det.motion_ratio * 100).toFixed(1)}% Movement Ratio`;
+        } else if (ev.details && ev.details.motion_percent !== undefined) {
+          DOM.eventDetailMotionRatio.textContent = `${ev.details.motion_percent}% Frame Area`;
+        } else {
+          DOM.eventDetailMotionRatio.textContent = 'Mask Verified';
+        }
+      }
+
+      if (DOM.eventDetailBbox) {
+        if (det && Array.isArray(det.box) && det.box.length === 4) {
+          const [x1, y1, x2, y2] = det.box;
+          DOM.eventDetailBbox.textContent = `[X:${x1}, Y:${y1}, W:${x2 - x1}, H:${y2 - y1}]`;
+        } else if (ev.details && ev.details.motion_percent) {
+          DOM.eventDetailBbox.textContent = `Full Motion Cluster (${ev.details.motion_percent}%)`;
+        } else {
+          DOM.eventDetailBbox.textContent = 'Full Frame Area';
+        }
+      }
+
+      // Timestamps for side-by-side
+      let initialTimeStr = 'Trigger Start';
+      let finalTimeStr = 'Motion Peak';
+      if (ev.details && Array.isArray(ev.details.images)) {
+        const initIm = ev.details.images.find(x => x.tag === 'initial');
+        const finalIm = ev.details.images.find(x => x.tag === 'final');
+        if (initIm && initIm.timestamp) {
+          initialTimeStr = new Date(initIm.timestamp).toLocaleTimeString();
+        }
+        if (finalIm && finalIm.timestamp) {
+          finalTimeStr = new Date(finalIm.timestamp).toLocaleTimeString();
+          if (ev.details.session_duration_sec) {
+            finalTimeStr += ` (+${ev.details.session_duration_sec.toFixed(1)}s)`;
+          }
+        }
+      } else if (ev.timestamp) {
+        initialTimeStr = new Date(ev.timestamp).toLocaleTimeString();
+        finalTimeStr = ev.end_timestamp ? new Date(ev.end_timestamp).toLocaleTimeString() : initialTimeStr;
+      }
+
+      if (DOM.sideInitialTime) DOM.sideInitialTime.textContent = initialTimeStr;
+      if (DOM.sideFinalTime) DOM.sideFinalTime.textContent = finalTimeStr;
+      if (DOM.stageFrameIndicator) {
+        DOM.stageFrameIndicator.innerHTML = `<span>Frame: <strong>Peak Concluding</strong> (${finalTimeStr})</span>`;
+      }
+
       if (DOM.eventDetailJson) DOM.eventDetailJson.textContent = JSON.stringify(ev, null, 2);
 
       if (DOM.downloadEventImgBtn) {
@@ -1031,9 +1097,12 @@
         DOM.btnCompInitial.classList.add('active');
         DOM.btnCompFinal.classList.remove('active');
         DOM.btnCompSideBySide.classList.remove('active');
-        DOM.singleImgContainer.style.display = 'block';
+        DOM.singleImgContainer.style.display = 'flex';
         DOM.sideBySideContainer.style.display = 'none';
         DOM.eventDetailImg.src = getEventImageSrc(state.activeEventData, 'initial');
+        if (DOM.stageFrameIndicator && DOM.sideInitialTime) {
+          DOM.stageFrameIndicator.innerHTML = `<span>Frame: <strong>1️⃣ Initial Trigger</strong> (${DOM.sideInitialTime.textContent})</span>`;
+        }
       });
     }
     if (DOM.btnCompFinal) {
@@ -1042,9 +1111,12 @@
         DOM.btnCompFinal.classList.add('active');
         DOM.btnCompInitial.classList.remove('active');
         DOM.btnCompSideBySide.classList.remove('active');
-        DOM.singleImgContainer.style.display = 'block';
+        DOM.singleImgContainer.style.display = 'flex';
         DOM.sideBySideContainer.style.display = 'none';
         DOM.eventDetailImg.src = getEventImageSrc(state.activeEventData, 'final');
+        if (DOM.stageFrameIndicator && DOM.sideFinalTime) {
+          DOM.stageFrameIndicator.innerHTML = `<span>Frame: <strong>2️⃣ Peak Concluding</strong> (${DOM.sideFinalTime.textContent})</span>`;
+        }
       });
     }
     if (DOM.btnCompSideBySide) {
@@ -1057,6 +1129,9 @@
         DOM.sideBySideContainer.style.display = 'flex';
         DOM.eventDetailInitialImg.src = getEventImageSrc(state.activeEventData, 'initial');
         DOM.eventDetailFinalImg.src = getEventImageSrc(state.activeEventData, 'final');
+        if (DOM.stageFrameIndicator) {
+          DOM.stageFrameIndicator.innerHTML = `<span>Mode: <strong>🔀 Side-by-Side Dual Comparison</strong></span>`;
+        }
       });
     }
   }

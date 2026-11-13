@@ -134,12 +134,19 @@ async def capture_incidents():
                 (async () => {
                     const firstCard = document.querySelector('.incident-card');
                     if (firstCard) {
-                        firstCard.click();
-                        await new Promise(r => setTimeout(r, 800));
+                        const evId = firstCard.getAttribute('data-event-id');
+                        if (window.PySurveillance && window.PySurveillance.inspectEvent) {
+                            await window.PySurveillance.inspectEvent(parseInt(evId));
+                        } else {
+                            firstCard.click();
+                        }
+                        await new Promise(r => setTimeout(r, 1500));
                         return {
                             opened: true,
+                            id: evId,
                             title: document.getElementById('eventDetailTitle') ? document.getElementById('eventDetailTitle').innerText : '',
-                            category: document.getElementById('eventDetailCategory') ? document.getElementById('eventDetailCategory').innerText : ''
+                            category: document.getElementById('eventDetailCategory') ? document.getElementById('eventDetailCategory').innerText : '',
+                            label: document.getElementById('eventDetailLabel') ? document.getElementById('eventDetailLabel').innerText : ''
                         };
                     }
                     return { opened: false };
