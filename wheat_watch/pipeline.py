@@ -189,24 +189,23 @@ class PipelineController:
 
             if frame is None or not self._running:
                 # Camera dropped a frame or is reconnecting.
-                # If audio activity occurs in dark/poor visibility, tick flashlight controller!
                 is_low_light = (motion_detector.active_mode == "night") or (motion_detector.measured_brightness < float(app_config.flashlight.get("lux_threshold", 45.0)))
                 flashlight_controller.process_sensor_activity(
                     has_camera_motion=False,
                     is_low_light=is_low_light,
-                    has_audio_activity=has_audio,
+                    measured_brightness=motion_detector.measured_brightness,
                 )
                 continue
 
             # 3. Motion detection with Night/Day adaptation & exposure suppression
             has_motion, motion_boxes, motion_percent, is_calibrating = motion_detector.process_frame(frame)
 
-            # 4. Automatic Flashlight Sensor Processing (Camera + Microphone)
+            # 4. Automatic Flashlight Sensor Processing (Camera Motion in Darkness)
             is_low_light = (motion_detector.active_mode == "night") or (motion_detector.measured_brightness < float(app_config.flashlight.get("lux_threshold", 45.0)))
             flashlight_controller.process_sensor_activity(
                 has_camera_motion=has_motion,
                 is_low_light=is_low_light,
-                has_audio_activity=has_audio,
+                measured_brightness=motion_detector.measured_brightness,
             )
 
             if is_calibrating:

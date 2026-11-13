@@ -1,5 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+storage/events/**/*.jpg
 storage/events/*.jpg
+storage/backups/*.db
 storage/events.db-journal

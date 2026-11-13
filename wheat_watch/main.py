@@ -38,6 +38,7 @@ from wheat_watch.motion import motion_detector
 from wheat_watch.network import generate_qr_svg, get_lan_ip, is_local_network_ip
 from wheat_watch.pipeline import pipeline
 from wheat_watch.power import power_manager
+from wheat_watch.security import hash_pin, rate_limiter, security_logger, session_manager, verify_pin_hash
 from wheat_watch.storage import storage_manager
 
 # Configure logging
@@ -74,9 +75,6 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 if SOUNDS_DIR.exists():
     app.mount("/sounds", StaticFiles(directory=str(SOUNDS_DIR)), name="sounds")
 
-# In-memory active tokens
-ACTIVE_PIN_SESSIONS = set()
-
 
 # Middleware: Enforce Local Network Access Restriction
 @app.middleware("http")
@@ -102,26 +100,34 @@ async def local_network_security_middleware(request: Request, call_next):
     return response
 
 
-# Dependency: Verify PIN for sensitive actions
+# Dependency: Verify PIN or valid session for sensitive actions
 def verify_pin_auth(request: Request) -> bool:
     if not app_config.server.get("pin_required", True):
         return True
 
+    client_ip = request.client.host if request.client else ""
+    token = request.headers.get("X-Dashboard-Token") or request.cookies.get("wheat_watch_session")
+
+    if token:
+        session = session_manager.validate_session(token, client_ip)
+        if session:
+            return True
+
+    # Header-based PIN authentication (legacy/CLI test fallback)
     pin = request.headers.get("X-Dashboard-PIN")
-    token = request.headers.get("X-Dashboard-Token")
+    if pin:
+        server_cfg = app_config.server
+        stored_hash = server_cfg.get("dashboard_pin_hash")
+        stored_salt = server_cfg.get("dashboard_pin_salt")
+        if stored_hash and stored_salt:
+            if verify_pin_hash(pin, stored_hash, stored_salt):
+                return True
+        elif pin == server_cfg.get("dashboard_pin"):
+            return True
 
-    configured_pin = app_config.server.get("dashboard_pin", "1234")
-    if pin and pin == configured_pin:
-        return True
-
-    if token and token in ACTIVE_PIN_SESSIONS:
-        return True
-
-    # Also check cookie
-    cookie_token = request.cookies.get("wheat_watch_session")
-    if cookie_token and cookie_token in ACTIVE_PIN_SESSIONS:
-        return True
-
+    security_logger.warning(
+        f"[SECURITY AUDIT] Unauthorized attempt to access protected endpoint: {request.url.path} from IP {client_ip}"
+    )
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="PIN authentication required for this action.",
@@ -242,29 +248,89 @@ async def get_qr_code():
 
 
 @app.post("/api/auth/verify")
-async def verify_pin(req: PINVerifyRequest, response: Response):
-    """Verify dashboard PIN and issue a session token."""
-    configured_pin = app_config.server.get("dashboard_pin", "1234")
-    if req.pin == configured_pin:
-        token = secrets.token_hex(24)
-        ACTIVE_PIN_SESSIONS.add(token)
+async def verify_pin(req: PINVerifyRequest, request: Request, response: Response):
+    """Verify dashboard PIN with rate limiting, brute-force lockout, and salted PBKDF2 hashing."""
+    client_ip = request.client.host if request.client else ""
+
+    # Check brute-force lockout
+    is_locked, remaining_sec = rate_limiter.is_locked_out(client_ip)
+    if is_locked:
+        security_logger.warning(
+            f"[SECURITY AUDIT] Rejected login attempt from locked-out IP {client_ip} ({remaining_sec}s remaining)."
+        )
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "success": False,
+                "message": f"Too many failed login attempts. Temporarily locked out. Try again in {remaining_sec} seconds.",
+            },
+        )
+
+    server_cfg = app_config.server
+    stored_hash = server_cfg.get("dashboard_pin_hash")
+    stored_salt = server_cfg.get("dashboard_pin_salt")
+
+    valid = False
+    if stored_hash and stored_salt:
+        valid = verify_pin_hash(req.pin, stored_hash, stored_salt)
+    else:
+        # Fallback/migration if unhashed
+        raw_pin = server_cfg.get("dashboard_pin", "1234")
+        if req.pin == raw_pin:
+            valid = True
+            h, s = hash_pin(req.pin)
+            server_cfg["dashboard_pin_hash"] = h
+            server_cfg["dashboard_pin_salt"] = s
+            server_cfg["dashboard_pin"] = "****"
+            app_config.save()
+
+    if valid:
+        rate_limiter.record_success(client_ip)
+        token, csrf_token = session_manager.create_session(client_ip)
+        is_https = request.url.scheme == "https"
         response.set_cookie(
             key="wheat_watch_session",
             value=token,
             max_age=86400,
             httponly=True,
             samesite="lax",
+            secure=is_https,
         )
-        return {"success": True, "token": token, "message": "PIN verified successfully."}
+        return {
+            "success": True,
+            "token": token,
+            "csrf_token": csrf_token,
+            "message": "PIN verified successfully.",
+        }
+
+    locked_now, attempts_left = rate_limiter.record_failure(client_ip)
+    if locked_now:
+        msg = f"Incorrect PIN. Maximum attempts exceeded. Locked out for {attempts_left} seconds."
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"success": False, "message": msg},
+        )
+
     return JSONResponse(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        content={"success": False, "message": "Incorrect dashboard PIN."},
+        content={"success": False, "message": f"Incorrect dashboard PIN. {attempts_left} attempts remaining."},
     )
+
+
+@app.post("/api/auth/logout")
+async def logout(request: Request, response: Response):
+    """Invalidate session token and clear authentication cookie."""
+    token = request.headers.get("X-Dashboard-Token") or request.cookies.get("wheat_watch_session")
+    if token:
+        session_manager.invalidate_session(token)
+    response.delete_cookie(key="wheat_watch_session")
+    return {"success": True, "message": "Logged out successfully."}
 
 
 @app.post("/api/monitoring/start")
 async def start_monitoring(auth: bool = Depends(verify_pin_auth)):
     """Start active surveillance monitoring."""
+    security_logger.info("[SECURITY AUDIT] Administrative action: START MONITORING requested.")
     res = pipeline.start_monitoring()
     return res
 
@@ -272,12 +338,13 @@ async def start_monitoring(auth: bool = Depends(verify_pin_auth)):
 @app.post("/api/monitoring/stop")
 async def stop_monitoring(auth: bool = Depends(verify_pin_auth)):
     """Stop active surveillance monitoring."""
+    security_logger.info("[SECURITY AUDIT] Administrative action: STOP MONITORING requested.")
     res = pipeline.stop_monitoring()
     return res
 
 
 @app.post("/api/camera/test")
-async def test_camera(req: CameraTestRequest):
+async def test_camera(req: CameraTestRequest, auth: bool = Depends(verify_pin_auth)):
     """Perform on-demand connection test to phone camera."""
     result = CameraWorker.test_connection(
         phone_ip=req.phone_ip,
@@ -289,8 +356,9 @@ async def test_camera(req: CameraTestRequest):
 
 
 @app.post("/api/camera/reconnect")
-async def force_camera_reconnect():
+async def force_camera_reconnect(auth: bool = Depends(verify_pin_auth)):
     """Force camera acquisition worker to cleanly re-establish stream connection."""
+    security_logger.info("[SECURITY AUDIT] Camera reconnection requested.")
     camera_worker.request_reconnect()
     return {"success": True, "message": "Camera reconnection requested."}
 
@@ -321,20 +389,22 @@ async def get_camera_controls():
 
 
 @app.post("/api/camera/controls")
-async def update_camera_controls(req: ImageControlsRequest):
+async def update_camera_controls(req: ImageControlsRequest, auth: bool = Depends(verify_pin_auth)):
     """Safely update camera quality, exposure, resolution, and tone mapping in real-time."""
     updates = req.dict(exclude_unset=True)
     if not updates:
         return {"success": True, "message": "No controls provided."}
 
+    security_logger.info(f"[SECURITY AUDIT] Camera controls updated: {list(updates.keys())}")
     # Delegate to CameraWorker's safe reconfiguration engine off the main event loop
     res = await asyncio.to_thread(camera_worker.reconfigure_camera, updates)
     return res
 
 
 @app.post("/api/camera/reset")
-async def reset_camera_controls():
+async def reset_camera_controls(auth: bool = Depends(verify_pin_auth)):
     """Reset camera quality, exposure, resolution, and tone mapping to balanced defaults safely."""
+    security_logger.info("[SECURITY AUDIT] Camera controls reset to defaults.")
     res = await asyncio.to_thread(camera_worker.reset_camera_settings)
     return res
 
@@ -463,8 +533,9 @@ async def get_night_mode_status():
 
 
 @app.post("/api/night_mode")
-async def set_night_mode_endpoint(req: NightModeRequest):
+async def set_night_mode_endpoint(req: NightModeRequest, auth: bool = Depends(verify_pin_auth)):
     """Set Night Surveillance mode: 'off', 'on', or 'auto'."""
+    security_logger.info(f"[SECURITY AUDIT] Night mode changed to: {req.mode}")
     res = motion_detector.set_night_mode(req.mode)
     broadcaster.broadcast_sync("night_mode", res)
     return res
@@ -520,9 +591,24 @@ async def get_storage_statistics():
 @app.post("/api/storage/cleanup")
 async def trigger_storage_cleanup_endpoint(auth: bool = Depends(verify_pin_auth)):
     """Manually trigger retention cleanup of expired event images and database records."""
+    security_logger.info("[SECURITY AUDIT] Storage retention cleanup manually triggered.")
     active_paths = event_store.get_active_image_paths()
     res = storage_manager.enforce_retention(active_paths=active_paths)
     return {"success": True, "cleanup": res, "stats": storage_manager.get_storage_stats()}
+
+
+@app.post("/api/storage/backup")
+async def trigger_database_backup(auth: bool = Depends(verify_pin_auth)):
+    """Create a point-in-time hot backup of the SQLite database."""
+    security_logger.info("[SECURITY AUDIT] Point-in-time database backup triggered.")
+    backup_path = event_store.create_backup()
+    return {"success": True, "backup_path": backup_path, "message": "Database backup created successfully."}
+
+
+@app.get("/api/database/health")
+async def get_database_health():
+    """Verify SQLite database integrity, file size, and row count."""
+    return event_store.check_integrity()
 
 
 @app.get("/api/storage/{filename:path}")
@@ -556,10 +642,14 @@ async def get_stored_image(filename: str):
 
 @app.get("/api/config")
 async def get_config():
-    """Retrieve current system configuration (sanitizing PIN)."""
+    """Retrieve current system configuration (sanitizing PIN and secret hashes)."""
     data = app_config.to_dict()
-    # Mask PIN for security
-    data["server"]["dashboard_pin"] = "****"
+    # Mask PIN and purge cryptographic secrets from response
+    server_cfg = data.get("server", {})
+    server_cfg["dashboard_pin"] = "****"
+    server_cfg.pop("dashboard_pin_hash", None)
+    server_cfg.pop("dashboard_pin_salt", None)
+    server_cfg.pop("session_secret", None)
     return data
 
 
@@ -634,8 +724,9 @@ async def get_push_status():
 
 
 @app.post("/api/push/toggle")
-async def toggle_push_status(req: PushToggleRequest):
+async def toggle_push_status(req: PushToggleRequest, auth: bool = Depends(verify_pin_auth)):
     """Toggle force push messages on/off or update push preferences."""
+    security_logger.info("[SECURITY AUDIT] Push preferences updated.")
     push_cfg = dict(app_config.push)
     if req.enabled is not None:
         push_cfg["enabled"] = req.enabled
@@ -661,7 +752,7 @@ async def toggle_push_status(req: PushToggleRequest):
 
 
 @app.post("/api/push/test")
-async def send_test_push():
+async def send_test_push(auth: bool = Depends(verify_pin_auth)):
     """Send an immediate test push notification to all connected browsers."""
     now_iso = datetime.now().astimezone().isoformat()
     recent_events = event_store.list_events(limit=1)

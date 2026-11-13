@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield Outer Border -->
+  <path d="M32 4 L54 12 C54 36 32 58 32 60 C32 58 10 36 10 12 Z" fill="url(#shieldGrad)" stroke="url(#accentGrad)" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Concentric Surveillance Sensor Circles -->
+  <circle cx="32" cy="28" r="14" fill="none" stroke="#334155" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <circle cx="32" cy="28" r="9" fill="#0f172a" stroke="url(#accentGrad)" stroke-width="2"/>
+  <circle cx="32" cy="28" r="4" fill="#38bdf8"/>
+  <!-- Status Dot / Active Sensor Indicator -->
+  <circle cx="44" cy="16" r="3" fill="#10b981"/>
+</svg>

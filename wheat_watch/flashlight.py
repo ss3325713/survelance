@@ -1,36 +1,32 @@
-"""Automatic flashlight controller for Wheat Watch.
+"""Intelligent flashlight controller for PySURVEILLANCE.
 
-Controls the Redmi 10 LED flashlight using complementary visual motion and
-microphone ambient sound activity sensors.
+Automates the Redmi 10 LED flashlight using camera motion detection in low-light environments.
 
-BEHAVIOUR & POLICIES:
-1. Modes:
-   - AUTO: Sensor-driven automation.
+CORE RULES & POLICIES:
+1. Primary Trigger: Camera-based motion detection under dark/low-light conditions.
+2. STRICT POLICY: Audio is NOT a flashlight trigger.
+3. Inactivity Duration: 15-second inactivity timeout. Continuous qualifying motion
+   actively resets the countdown.
+4. Duration Bounds:
+   - Min ON time: Configurable minimum (10.0s) to prevent rapid strobing.
+   - Max ON time: Safety cutoff (120.0s) to protect phone hardware/battery.
+5. Operating Modes:
+   - AUTO: Automatic sensor evaluation.
    - MANUAL: User forced ON (overrides automation).
    - OFF: User forced OFF (automation disabled).
-2. Triggers (Low Light only):
-   - Camera motion in low-light -> turns ON flashlight (Trigger: CAMERA).
-   - Audio activity when camera visibility is poor -> turns ON flashlight (Trigger: MICROPHONE).
-   - Simultaneous camera and audio activity -> turns ON flashlight (Trigger: BOTH).
-   - In daylight / bright conditions: Automation is suppressed.
-3. Stabilization:
-   - Brief camera stabilization triggered upon turning ON/OFF to prevent exposure
-     shifts from causing artificial motion detections.
-4. Duration Constraints:
-   - Inactivity timeout: Turns OFF after 15 seconds without detected activity.
-   - Min ON time: Configurable minimum (10.0s).
-   - Max ON time: Configurable safety cutoff (120.0s) to prevent battery/LED overheating.
-5. Reliability:
-   - Explicit commands (/enabletorch, /disabletorch) only. Never toggle.
-   - State updated ONLY when hardware command confirms success.
+6. Hardware Verification:
+   - Explicit commands (/enabletorch, /disabletorch).
+   - Actual hardware state is tracked independently from requested state.
+   - Never report flashlight ON if the phone command failed.
 """
 
 from __future__ import annotations
 
+import collections
 import logging
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Deque, Dict, List, Optional
 
 from wheat_watch.broadcaster import broadcaster
 from wheat_watch.camera import camera_worker
@@ -41,24 +37,48 @@ logger = logging.getLogger("wheat_watch.flashlight")
 
 
 class FlashlightController:
-    """Manages automatic flashlight state, multi-sensor activity, and timer constraints."""
+    """Manages intelligent flashlight automation, inactivity countdown, and hardware telemetry."""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
 
-        # Operational state
+        # Operational modes & hardware states
         cfg = app_config.flashlight
         self.mode: str = cfg.get("mode", "auto").lower()  # "auto", "manual", "off"
-        self.is_on: bool = False
+        self.is_on: bool = False  # Actual confirmed hardware state
+        self.requested_state: bool = False  # Last requested state
 
-        # Timers & metrics
+        # Timing & Triggers
         self.turn_on_time: float = 0.0
-        self.last_activity_time: float = 0.0
-        self.active_trigger: Optional[str] = None  # "CAMERA", "MICROPHONE", "BOTH", "MANUAL"
+        self.last_motion_time: float = 0.0
+        self.last_activation_time: Optional[float] = None
+        self.active_trigger: Optional[str] = None  # "CAMERA_MOTION", "MANUAL", None
         self.last_trigger: Optional[str] = None
         self.last_trigger_time: float = 0.0
+
+        # Telemetry & Diagnostics
+        self.lighting_condition: str = "UNKNOWN"  # "DARK", "BRIGHT", "UNKNOWN"
+        self.motion_detected: bool = False
+        self.last_command_result: str = "IDLE"
         self.last_error: Optional[str] = None
         self._last_command_time: float = 0.0
+
+        # In-memory automation event log (last 20 events)
+        self.event_log: Deque[Dict[str, Any]] = collections.deque(maxlen=20)
+        self._log_event("INITIALIZED", f"FlashlightController initialized in {self.mode.upper()} mode")
+
+    def _log_event(self, action: str, details: str, result: str = "OK") -> None:
+        """Record an automation lifecycle entry in the in-memory circular log."""
+        entry = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "epoch": round(time.time(), 2),
+            "mode": self.mode,
+            "action": action,
+            "details": details,
+            "result": result,
+            "hardware_is_on": self.is_on,
+        }
+        self.event_log.append(entry)
 
     def set_mode(self, mode: str) -> Dict[str, Any]:
         """Switch between AUTO, MANUAL (forced ON), and OFF."""
@@ -71,22 +91,23 @@ class FlashlightController:
             self.mode = mode
             app_config.update({"flashlight": {"mode": mode}})
 
-            logger.info(f"Flashlight mode changed from {prev_mode.upper()} to {self.mode.upper()}.")
+            logger.info(f"Flashlight mode switched: {prev_mode.upper()} -> {self.mode.upper()}")
+            self._log_event("MODE_CHANGE", f"Switched mode to {self.mode.upper()}")
 
             if self.mode == "manual":
-                # Explicitly command hardware ON
+                self.requested_state = True
                 success = self._send_hardware_command(True, trigger="MANUAL")
                 if not success:
-                    logger.warning("Manual flashlight ON command failed on camera.")
+                    logger.warning("Manual flashlight ON command failed on camera device.")
             elif self.mode == "off":
-                # Explicitly command hardware OFF
+                self.requested_state = False
                 success = self._send_hardware_command(False)
                 if not success:
-                    logger.warning("Manual flashlight OFF command failed on camera.")
+                    logger.warning("Manual flashlight OFF command failed on camera device.")
             elif self.mode == "auto":
                 # Returning to AUTO resumes automatic sensor evaluation
                 now = time.time()
-                self.last_activity_time = now
+                self.last_motion_time = now
                 logger.info("Resumed AUTO flashlight surveillance mode.")
 
             status = self.get_status()
@@ -94,7 +115,7 @@ class FlashlightController:
             return status
 
     def handle_manual_torch_toggle(self, target_state: bool) -> Dict[str, Any]:
-        """Support existing manual torch control from image controls card."""
+        """Support manual torch toggling from camera controls card."""
         target_mode = "manual" if target_state else "off"
         return self.set_mode(target_mode)
 
@@ -102,109 +123,116 @@ class FlashlightController:
         self,
         has_camera_motion: bool,
         is_low_light: bool,
-        has_audio_activity: bool,
+        has_audio_activity: Optional[bool] = None,
+        measured_brightness: float = 0.0,
     ) -> Dict[str, Any]:
-        """Tick function called by pipeline to evaluate multi-sensor triggers."""
+        """Tick function called by pipeline loop to evaluate camera motion and ambient darkness.
+
+        STRICT SPECIFICATION: Audio is NOT a trigger for flashlight automation.
+        """
         now = time.time()
 
         with self._lock:
-            # 1. Mode check
+            self.lighting_condition = "DARK" if is_low_light else "BRIGHT"
+            self.motion_detected = has_camera_motion
+
+            # 1. Mode check: Forced OFF
             if self.mode == "off":
+                self.requested_state = False
                 if self.is_on:
                     self._send_hardware_command(False)
                 return self.get_status()
 
+            # 2. Mode check: Forced MANUAL ON
             if self.mode == "manual":
-                # Keep ON in manual mode
+                self.requested_state = True
                 if not self.is_on:
                     self._send_hardware_command(True, trigger="MANUAL")
                 return self.get_status()
 
-            # 2. AUTO Mode: Sensor evaluation
+            # 3. AUTO Mode: Sensor evaluation
             cfg = app_config.flashlight
             min_on_time = float(cfg.get("min_on_time_sec", 10.0))
             max_on_time = float(cfg.get("max_on_time_sec", 120.0))
             inactivity_timeout = float(cfg.get("inactivity_timeout_sec", 15.0))
             stabilization_frames = int(cfg.get("stabilization_frames", 15))
 
-            # Determine sensor trigger source
-            cam_active = has_camera_motion and is_low_light
-            mic_active = has_audio_activity and is_low_light
+            # Primary qualifying trigger: Motion in darkness
+            qualifying_motion = has_camera_motion and is_low_light
 
-            sensor_trigger: Optional[str] = None
-            if cam_active and mic_active:
-                sensor_trigger = "BOTH"
-            elif cam_active:
-                sensor_trigger = "CAMERA"
-            elif mic_active:
-                sensor_trigger = "MICROPHONE"
-
-            # CASE A: Flashlight is currently OFF -> Check for activation
+            # CASE A: Flashlight is currently OFF -> Evaluate for activation
             if not self.is_on:
-                if sensor_trigger is not None:
-                    # Attempt activation
-                    success = self._send_hardware_command(True, trigger=sensor_trigger)
+                self.requested_state = False
+                if qualifying_motion:
+                    self.requested_state = True
+                    success = self._send_hardware_command(True, trigger="CAMERA_MOTION")
                     if success:
                         self.turn_on_time = now
-                        self.last_activity_time = now
-                        self.active_trigger = sensor_trigger
-                        self.last_trigger = sensor_trigger
+                        self.last_motion_time = now
+                        self.last_activation_time = now
+                        self.active_trigger = "CAMERA_MOTION"
+                        self.last_trigger = "CAMERA_MOTION"
                         self.last_trigger_time = now
-                        logger.info(
-                            f"Flashlight turned ON automatically. Trigger source: [{sensor_trigger}]. "
-                            f"Camera low-light={is_low_light}, Audio={has_audio_activity}"
+                        self._log_event(
+                            "AUTO_ACTIVATE",
+                            f"Activated by camera motion in darkness (brightness={measured_brightness:.1f})",
+                            result="SUCCESS",
                         )
-                        # Stabilize motion detector for lighting change
+                        logger.info(
+                            f"Flashlight turned ON automatically. Trigger: CAMERA_MOTION. "
+                            f"Low-light condition confirmed."
+                        )
+                        # Stabilize motion detector for sudden exposure jump
                         motion_detector.trigger_stabilization(count=stabilization_frames)
                         camera_worker.set_active_detections(
-                            [], [], header_text=f"🔦 Flashlight Active [{sensor_trigger}]", duration=1.5
+                            [], [], header_text="🔦 Flashlight Active [Motion in Darkness]", duration=1.5
                         )
                         broadcaster.broadcast_sync("flashlight", self.get_status())
                 return self.get_status()
 
-            # CASE B: Flashlight is currently ON -> Check activity continuation & timeouts
+            # CASE B: Flashlight is currently ON -> Track continuous motion & inactivity countdown
             elapsed_on = max(0.0, now - self.turn_on_time)
 
-            # Activity continuation (any camera motion or audio keeps timer alive)
-            if has_camera_motion or has_audio_activity:
-                self.last_activity_time = now
-                if sensor_trigger and sensor_trigger != self.active_trigger:
-                    self.active_trigger = sensor_trigger
+            # Continuous motion resets the inactivity countdown timer
+            if has_camera_motion:
+                self.last_motion_time = now
 
-            inactivity_duration = max(0.0, now - self.last_activity_time)
+            inactivity_duration = max(0.0, now - self.last_motion_time)
 
-            # Check 1: Maximum ON time safety cutoff
+            # Check 1: Maximum ON safety cutoff (prevent LED/battery thermal stress)
             if elapsed_on >= max_on_time:
                 logger.warning(
-                    f"Flashlight reached maximum ON time ({max_on_time}s). Automatically turning OFF to prevent overheating."
+                    f"Flashlight reached safety maximum ON duration ({max_on_time}s). Automatically turning OFF."
                 )
                 self._turn_off_auto(reason="MAX_ON_TIME_EXCEEDED")
                 return self.get_status()
 
-            # Check 2: Inactivity timeout after minimum ON time has elapsed
+            # Check 2: 15-second inactivity timeout (after minimum on-time satisfied)
             if elapsed_on >= min_on_time and inactivity_duration >= inactivity_timeout:
                 logger.info(
-                    f"Flashlight turned OFF automatically after {inactivity_timeout}s without detected activity "
+                    f"Flashlight turned OFF automatically after {inactivity_timeout}s without motion "
                     f"(Total active: {elapsed_on:.1f}s)."
                 )
-                self._turn_off_auto(reason="INACTIVITY_TIMEOUT")
+                self._turn_off_auto(reason="INACTIVITY_TIMEOUT_15S")
                 return self.get_status()
 
             return self.get_status()
 
     def _turn_off_auto(self, reason: str) -> None:
-        """Helper to turn off flashlight in AUTO mode with exposure stabilization."""
+        """Turn off flashlight in AUTO mode and trigger brief exposure stabilization."""
+        self.requested_state = False
         success = self._send_hardware_command(False)
         if success:
             self.active_trigger = None
+            self._log_event("AUTO_DEACTIVATE", f"Turned off: {reason}", result="SUCCESS")
             motion_detector.trigger_stabilization(count=10)
             broadcaster.broadcast_sync("flashlight", self.get_status())
 
     def _send_hardware_command(self, turn_on: bool, trigger: Optional[str] = None) -> bool:
-        """Send explicit ON or OFF command to Redmi 10 IP Webcam and verify success."""
-        # Rate limit hardware commands to at most once per 200ms
+        """Send explicit ON (/enabletorch) or OFF (/disabletorch) command to Redmi 10 IP Webcam."""
         now = time.time()
-        if now - self._last_command_time < 0.2:
+        # Rate limit hardware commands to at most once per 250ms
+        if now - self._last_command_time < 0.25:
             time.sleep(0.1)
 
         self._last_command_time = time.time()
@@ -213,42 +241,60 @@ class FlashlightController:
 
         if success:
             self.is_on = turn_on
+            self.last_command_result = "SUCCESS"
             self.last_error = None
             if turn_on:
-                if trigger:
-                    self.active_trigger = trigger
+                self.active_trigger = trigger or "MANUAL"
             else:
                 self.active_trigger = None
             # Keep app_config in sync
             app_config.image_controls["torch"] = turn_on
             return True
         else:
-            err = f"Failed to send {'/enabletorch' if turn_on else '/disabletorch'} to camera."
+            err = f"Failed to send {'/enabletorch' if turn_on else '/disabletorch'} to phone camera."
+            self.last_command_result = f"FAILED: {err}"
             self.last_error = err
+            self._log_event(
+                "HARDWARE_ERROR",
+                f"Command {'ON' if turn_on else 'OFF'} failed on camera endpoint",
+                result="FAILED",
+            )
             logger.error(err)
-            # NEVER claim the flashlight changed state when its command failed!
+            # NEVER report flashlight ON if the phone did not confirm it!
             return False
 
     def get_status(self) -> Dict[str, Any]:
-        """Return real-time flashlight status and activity telemetry."""
+        """Return comprehensive real-time flashlight status, timers, and event log."""
         with self._lock:
             now = time.time()
             time_on = 0.0
-            if self.is_on and self.turn_on_time > 0:
-                time_on = round(now - self.turn_on_time, 1)
+            countdown = 0.0
 
             cfg = app_config.flashlight
+            inactivity_timeout = float(cfg.get("inactivity_timeout_sec", 15.0))
+
+            if self.is_on and self.turn_on_time > 0:
+                time_on = round(now - self.turn_on_time, 1)
+                inactivity_dur = max(0.0, now - self.last_motion_time)
+                countdown = max(0.0, round(inactivity_timeout - inactivity_dur, 1))
+
             return {
                 "mode": self.mode,  # "auto", "manual", "off"
-                "is_on": self.is_on,
+                "is_on": self.is_on,  # Actual verified hardware state
+                "requested_state": self.requested_state,
+                "lighting_condition": self.lighting_condition,
+                "motion_detected": self.motion_detected,
                 "active_trigger": self.active_trigger,
                 "last_trigger": self.last_trigger,
-                "last_trigger_time": self.last_trigger_time if self.last_trigger_time > 0 else None,
+                "last_activation_time": self.last_activation_time,
                 "time_on_sec": time_on,
+                "inactivity_countdown_sec": countdown,
+                "inactivity_timeout_sec": inactivity_timeout,
                 "min_on_time_sec": float(cfg.get("min_on_time_sec", 10.0)),
                 "max_on_time_sec": float(cfg.get("max_on_time_sec", 120.0)),
-                "inactivity_timeout_sec": float(cfg.get("inactivity_timeout_sec", 15.0)),
+                "last_command_result": self.last_command_result,
                 "last_error": self.last_error,
+                "event_log": list(self.event_log),
             }
 
 

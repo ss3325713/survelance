@@ -4,6 +4,7 @@
     "phone_port": 8080,
     "video_endpoint": "/video",
     "snapshot_endpoint": "/shot.jpg",
+    "audio_endpoint": "/audio.wav",
     "username": "",
     "password": "",
     "timeout_sec": 5.0,
@@ -15,10 +16,12 @@
   "server": {
     "host": "0.0.0.0",
     "port": 8000,
-    "dashboard_pin": "1234",
+    "dashboard_pin": "****",
     "pin_required": true,
     "session_secret": "7672e488857cbe0efb3a4d1ccf1cfffddd2a3779cab2a3d139a928e0e04848c0",
-    "restrict_local_network": true
+    "restrict_local_network": true,
+    "dashboard_pin_hash": "86667b5c9c4d21259de9dc1882bc5c1154c78aacefeabbc0389e1295155eb36c",
+    "dashboard_pin_salt": "e96e2ec1134561b631a2a46cfd152bcd"
   },
   "pipeline": {
     "target_width": 1280,
@@ -72,7 +75,7 @@
     "prevent_sleep": true
   },
   "push": {
-    "enabled": true,
+    "enabled": false,
     "browser_audio": true,
     "desktop_notifications": true,
     "push_on_general_motion": false,

@@ -523,5 +523,49 @@ class EventStore:
             "latest_event": latest_dict,
         }
 
+    def check_integrity(self) -> Dict[str, Any]:
+        """Perform SQLite integrity checks and report database health."""
+        with self._lock, self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA integrity_check")
+            integrity_result = cursor.fetchall()
+            status_text = integrity_result[0][0] if integrity_result else "UNKNOWN"
+            is_healthy = (status_text.lower() == "ok")
+
+            cursor.execute("SELECT COUNT(*) FROM events")
+            row_count = cursor.fetchone()[0]
+
+            db_size_bytes = self.db_path.stat().st_size if self.db_path.exists() else 0
+
+        return {
+            "status": "healthy" if is_healthy else "corrupted",
+            "integrity_check": status_text,
+            "row_count": row_count,
+            "file_size_bytes": db_size_bytes,
+            "file_size_kb": round(db_size_bytes / 1024, 1),
+            "db_path": str(self.db_path),
+        }
+
+    def create_backup(self, backup_dir: Optional[str] = None) -> str:
+        """Create a point-in-time hot backup of the SQLite database using SQLite Backup API."""
+        if backup_dir is None:
+            b_dir = Path("storage/backups")
+        else:
+            b_dir = Path(backup_dir)
+        b_dir.mkdir(parents=True, exist_ok=True)
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = b_dir / f"events_backup_{ts}.db"
+
+        with self._lock, self._get_connection() as src_conn:
+            dst_conn = sqlite3.connect(str(backup_file))
+            try:
+                src_conn.backup(dst_conn)
+                logger.info(f"Database point-in-time backup created: {backup_file} ({backup_file.stat().st_size} bytes)")
+            finally:
+                dst_conn.close()
+
+        return str(backup_file)
+
 
 event_store = EventStore()

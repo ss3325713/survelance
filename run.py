@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wheat Watch - Autonomous Field Surveillance & Crop Defense System.
+"""PySURVEILLANCE - Intelligent Field Surveillance & Security Monitoring Platform.
 
 Main application entrypoint. Binds to 0.0.0.0:8000.
 """
@@ -21,7 +21,7 @@ from wheat_watch.network import get_lan_ip
 
 
 def handle_signals(sig, frame):
-    print("\n[Wheat Watch] Received shutdown signal. Terminating gracefully...")
+    print("\n[PySURVEILLANCE] Received shutdown signal. Terminating gracefully...")
     sys.exit(0)
 
 
@@ -37,13 +37,16 @@ def main():
 
     banner = f"""
 ========================================================================
-🌾 WHEAT WATCH — Autonomous Field Surveillance & Crop Defense System
+🛡️  PySURVEILLANCE — Intelligent Security & Field Defense Console
 ========================================================================
  [✓] Local Network Binding : {host}:{port}
  [✓] Laptop Access URL     : http://127.0.0.1:{port}
  [✓] Phone Dashboard URL   : http://{lan_ip}:{port}
- [✓] Target Phone Camera   : http://{phone_ip}:{phone_port}/video
+ [✓] Redmi 10 Camera       : http://{phone_ip}:{phone_port}/video
+ [✓] Redmi 10 Microphone   : http://{phone_ip}:{phone_port}/audio.wav
+ [✓] Hardware Flashlight   : Motion-Triggered (15s Inactivity Timeout)
  [✓] Audio Engine Active   : Laptop system speakers (paplay/aplay)
+ [✓] Security Firewall     : Local LAN Enforced | PBKDF2 PIN Protected
  [✓] Power Manager         : systemd-inhibit active monitoring
 ========================================================================
 """

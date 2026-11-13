@@ -23,6 +23,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "phone_port": 8080,
         "video_endpoint": "/video",
         "snapshot_endpoint": "/shot.jpg",
+        "audio_endpoint": "/audio.wav",
         "username": "",
         "password": "",
         "timeout_sec": 5.0,
@@ -184,13 +185,30 @@ class Config:
                 with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 merged = cls._merge_defaults(DEFAULT_CONFIG, data)
-                if merged.get("server", {}).get("dashboard_pin") == "****":
-                    merged["server"]["dashboard_pin"] = "1234"
-                return cls(merged)
+                server_cfg = merged.setdefault("server", {})
+                # Secure PIN migration: convert legacy plaintext PIN to salted PBKDF2 hash
+                raw_pin = server_cfg.get("dashboard_pin")
+                if "dashboard_pin_hash" not in server_cfg:
+                    from wheat_watch.security import hash_pin
+                    effective_pin = "1234" if (not raw_pin or raw_pin == "****") else str(raw_pin)
+                    h, s = hash_pin(effective_pin)
+                    server_cfg["dashboard_pin_hash"] = h
+                    server_cfg["dashboard_pin_salt"] = s
+                    server_cfg["dashboard_pin"] = "****"
+                instance = cls(merged)
+                instance.save()
+                return instance
             except Exception as e:
                 logger.error(f"Failed to load config, falling back to defaults: {e}")
         # Save default config if not exists
         instance = cls(dict(DEFAULT_CONFIG))
+        server_cfg = instance._data.setdefault("server", {})
+        if "dashboard_pin_hash" not in server_cfg:
+            from wheat_watch.security import hash_pin
+            h, s = hash_pin("1234")
+            server_cfg["dashboard_pin_hash"] = h
+            server_cfg["dashboard_pin_salt"] = s
+            server_cfg["dashboard_pin"] = "****"
         instance.save()
         return instance
 
@@ -214,8 +232,13 @@ class Config:
 
     def update(self, updates: Dict[str, Any]) -> None:
         if "server" in updates and isinstance(updates["server"], dict):
-            if updates["server"].get("dashboard_pin") == "****":
-                updates["server"].pop("dashboard_pin", None)
+            new_pin = updates["server"].pop("dashboard_pin", None)
+            if new_pin and new_pin != "****":
+                from wheat_watch.security import hash_pin
+                h, s = hash_pin(str(new_pin))
+                updates["server"]["dashboard_pin_hash"] = h
+                updates["server"]["dashboard_pin_salt"] = s
+                updates["server"]["dashboard_pin"] = "****"
         self._data = self._merge_defaults(self._data, updates)
         self.save()
 
@@ -279,6 +302,14 @@ class Config:
     def camera_snapshot_url(self) -> str:
         cam = self.camera
         ep = cam["snapshot_endpoint"]
+        if not ep.startswith("/"):
+            ep = "/" + ep
+        return f"http://{cam['phone_ip']}:{cam['phone_port']}{ep}"
+
+    @property
+    def camera_audio_url(self) -> str:
+        cam = self.camera
+        ep = cam.get("audio_endpoint", "/audio.wav")
         if not ep.startswith("/"):
             ep = "/" + ep
         return f"http://{cam['phone_ip']}:{cam['phone_port']}{ep}"

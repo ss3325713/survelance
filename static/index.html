@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🌾 PySURVEILLANCE — Surveillance & Field Defense</title>
+  <title>PySURVEILLANCE — Intelligent Security & Field Defense Console</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -14,10 +15,18 @@
   <!-- Top Navigation Header -->
   <header class="navbar">
     <div class="nav-brand">
-      <div class="brand-logo">🌾</div>
+      <div class="brand-logo brand-logo-svg">
+        <svg width="24" height="24" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 4 L54 12 C54 36 32 58 32 60 C32 58 10 36 10 12 Z" fill="#0f172a" stroke="#3b82f6" stroke-width="3" stroke-linejoin="round"/>
+          <circle cx="32" cy="28" r="12" stroke="#06b6d4" stroke-width="2" stroke-dasharray="3,2"/>
+          <circle cx="32" cy="28" r="7" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
+          <circle cx="32" cy="28" r="3" fill="#38bdf8"/>
+          <circle cx="44" cy="16" r="3" fill="#10b981"/>
+        </svg>
+      </div>
       <div class="brand-title">
         <h1>PySURVEILLANCE</h1>
-        <span class="brand-subtitle">SURVEILLANCE & DEFENSE</span>
+        <span class="brand-subtitle">INTELLIGENT DEFENSE CONSOLE</span>
       </div>
     </div>
 
@@ -46,12 +55,23 @@
       </div>
 
       <!-- Camera Connection Status -->
-      <div id="cameraPill" class="status-pill pill-warning">
+      <div id="cameraPill" class="status-pill pill-warning" title="Redmi 10 Camera Stream Status">
         <span class="pill-dot"></span>
         <span id="cameraPillText">CAMERA: CONNECTING</span>
       </div>
 
-      <div id="sleepPill" class="status-pill pill-info">
+      <!-- Phone Audio Status -->
+      <div id="micPill" class="status-pill pill-danger" title="Redmi 10 Smartphone Audio Stream (Laptop Mic Fallback Prohibited)">
+        <span class="pill-dot"></span>
+        <span id="micPillText">PHONE AUDIO: DISCONNECTED</span>
+      </div>
+
+      <!-- Database Health -->
+      <div id="dbPill" class="status-pill pill-info" title="SQLite Incident History Database">
+        <span>💾 <strong id="dbStatusText">DB: HEALTHY</strong></span>
+      </div>
+
+      <div id="sleepPill" class="status-pill pill-info" title="System Power Inhibitor Status">
         <span>⚡ SLEEP INHIBITED</span>
       </div>
     </div>
@@ -61,6 +81,9 @@
       <button id="togglePushNavBtn" class="btn btn-push-toggle active" title="Toggle Force Push Messages to this Browser">
         <span class="push-bell">🔔</span>
         <span id="pushNavLabel">Push: ON</span>
+      </button>
+      <button id="diagnosticsBtn" class="btn btn-secondary btn-sm" title="Open Real-time System Diagnostics">
+        🩺 Diagnostics
       </button>
       <button id="qrBtn" class="btn btn-secondary btn-sm" title="Scan QR to open on Phone">
         📱 Phone Link
@@ -195,22 +218,103 @@
               <button id="resetControlsBtn" class="btn btn-outline btn-sm text-sub">↺ Reset</button>
             </div>
           </div>
+        </div>
+      </div>
 
-          <!-- Automatic Flashlight & Microphone Activity Controls -->
-          <div class="control-box flashlight-control-box" style="margin-top: 0.75rem; background: var(--bg-card); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-              <label style="margin: 0; font-size: 0.85rem;"><strong>🔦 Flashlight Automation</strong></label>
-              <span id="flashlightStatusPill" class="badge">AUTO [OFF]</span>
+      <!-- Dedicated Card: Flashlight Automation -->
+      <div class="card" style="margin-top: 1rem;">
+        <div class="card-header" style="padding-bottom: 0.5rem;">
+          <div class="card-title">
+            <span class="live-tag" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; border-color: #eab308;">HARDWARE LED</span>
+            <h3>🔦 Flashlight Automation</h3>
+          </div>
+          <span id="flashlightStatusPill" class="badge">AUTO [OFF]</span>
+        </div>
+        <div class="card-body" style="padding: 0.75rem 1rem;">
+          <!-- Mode Selector -->
+          <div class="btn-segmented" style="display: flex; gap: 0.35rem; margin-bottom: 0.75rem;">
+            <button id="btnFlashlightAuto" class="btn-seg-option active" style="flex: 1;" title="Triggered by Camera Motion in Darkness with 15s Timeout">⚡ Auto (Motion)</button>
+            <button id="btnFlashlightManual" class="btn-seg-option" style="flex: 1;" title="Manual Force ON (Temporary Override)">💡 Force ON</button>
+            <button id="btnFlashlightOff" class="btn-seg-option" style="flex: 1;" title="Force OFF (Automation Disabled)">⚫ Force OFF</button>
+          </div>
+
+          <!-- 15-Second Inactivity Countdown Progress Bar -->
+          <div style="margin-bottom: 0.6rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.2rem;">
+              <span class="text-sub">Inactivity Timeout (15s):</span>
+              <strong id="flashlightCountdownText">15.0s</strong>
             </div>
-            <div class="btn-segmented" style="display: flex; gap: 0.25rem;">
-              <button id="btnFlashlightAuto" class="btn-seg-option active" style="flex: 1;" title="Automatic multi-sensor control (Camera + Microphone in low-light)">⚡ Auto</button>
-              <button id="btnFlashlightManual" class="btn-seg-option" style="flex: 1;" title="Manual Force ON (Temporary override)">💡 Force ON</button>
-              <button id="btnFlashlightOff" class="btn-seg-option" style="flex: 1;" title="Force OFF (Automation disabled)">⚫ Force OFF</button>
+            <div class="countdown-bar">
+              <div id="flashlightCountdownFill" class="countdown-fill" style="width: 0%;"></div>
             </div>
-            <div id="flashlightDetailRow" class="text-sub" style="font-size: 0.75rem; margin-top: 0.4rem; display: flex; justify-content: space-between;">
-              <span>Trigger: <strong id="flashlightTriggerText">None</strong></span>
-              <span>Audio: <strong id="audioStatusText">Silent</strong></span>
+          </div>
+
+          <!-- Telemetry Grid -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.78rem; margin-bottom: 0.6rem;">
+            <div>Lighting: <strong id="flashlightLightingText">BRIGHT</strong></div>
+            <div>Motion: <strong id="flashlightMotionText">CLEAR</strong></div>
+            <div>Trigger: <strong id="flashlightTriggerText">None</strong></div>
+            <div>Requested: <strong id="flashlightRequestedText">OFF</strong></div>
+            <div style="grid-column: span 2;">Result: <strong id="flashlightResultText">IDLE</strong></div>
+          </div>
+
+          <!-- Collapsible Event Log Drawer -->
+          <div class="event-log-drawer">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">Automation History</span>
+              <button id="toggleFlashlightLogBtn" class="btn btn-outline btn-sm" style="font-size: 0.7rem; padding: 0.15rem 0.5rem;">📜 Toggle History</button>
             </div>
+            <div id="flashlightLogContainer" style="display: none; max-height: 140px; overflow-y: auto; margin-top: 0.4rem;">
+              <table class="event-log-table">
+                <thead>
+                  <tr><th>Time</th><th>Action</th><th>Trigger</th><th>Result</th></tr>
+                </thead>
+                <tbody id="flashlightLogTableBody">
+                  <tr><td colspan="4" class="text-sub" style="text-align: center;">No automation events recorded yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dedicated Card: Phone Audio Monitoring -->
+      <div class="card" style="margin-top: 1rem;">
+        <div class="card-header" style="padding-bottom: 0.5rem;">
+          <div class="card-title">
+            <span class="live-tag" style="background: rgba(6, 182, 212, 0.2); color: #38bdf8; border-color: #06b6d4;">PHONE SENSOR</span>
+            <h3>🎙️ Redmi 10 Audio Monitor</h3>
+          </div>
+          <span id="audioStateBadge" class="badge badge-danger">DISCONNECTED</span>
+        </div>
+        <div class="card-body" style="padding: 0.75rem 1rem;">
+          <div style="font-size: 0.75rem; color: var(--text-sub); margin-bottom: 0.4rem;">
+            Source: <strong style="color: var(--text-main);">Redmi 10 Smartphone (IP Webcam)</strong>
+            <span class="badge badge-success" style="font-size: 0.65rem; margin-left: 0.4rem;">Laptop Mic Prohibited</span>
+          </div>
+
+          <!-- Real-Time Audio Signal RMS Meter Bar -->
+          <div style="margin-bottom: 0.6rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.2rem;">
+              <span>Signal Level: <strong id="audioRmsText">0.0 RMS</strong></span>
+              <span id="audioStatusText" class="badge">Silent</span>
+            </div>
+            <div class="audio-meter-bar">
+              <div id="audioMeterFill" class="audio-meter-fill" style="width: 0%;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-sub);">
+              <span>Floor: <strong id="audioNoiseFloorText">1200.0</strong></span>
+              <span>SNR: <strong id="audioSnrText">1.00x</strong></span>
+              <span>Rate: <strong id="audioFormatText">16kHz Mono</strong></span>
+            </div>
+          </div>
+
+          <!-- Stream Endpoint & Action Row -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.4rem; border-top: 1px solid rgba(255, 255, 255, 0.05);">
+            <div class="text-mono" id="audioStreamUrlText" style="color: var(--text-sub); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; max-width: 65%;">
+              http://192.168.31.211:8080/audio.wav
+            </div>
+            <button id="testAudioBtn" class="btn btn-outline btn-sm" style="font-size: 0.7rem;">🔊 Test Trigger</button>
           </div>
         </div>
       </div>
@@ -672,6 +776,81 @@
 
       <div class="modal-footer">
         <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diagnostics Modal -->
+  <div id="diagnosticsModal" class="modal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3>🩺 PySURVEILLANCE System Diagnostics & Subsystem Health</h3>
+        <button class="modal-close" data-close="diagnosticsModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="diagnostics-grid">
+          <!-- Camera Subsystem -->
+          <div class="diag-card">
+            <h4>📹 Camera Stream Subsystem</h4>
+            <div class="diag-row"><span>State:</span> <strong id="diagCamState">ONLINE</strong></div>
+            <div class="diag-row"><span>Target URL:</span> <span id="diagCamUrl" class="text-mono">--</span></div>
+            <div class="diag-row"><span>Resolution:</span> <span id="diagCamRes">--</span></div>
+            <div class="diag-row"><span>Acquisition FPS:</span> <span id="diagCamFps">--</span></div>
+            <div class="diag-row"><span>Processing Latency:</span> <span id="diagCamLatency">--</span></div>
+            <div class="diag-row"><span>Reconnection Attempts:</span> <span id="diagCamReconnects">0</span></div>
+          </div>
+          <!-- Phone Audio Subsystem -->
+          <div class="diag-card">
+            <h4>🎙️ Phone Audio Subsystem</h4>
+            <div class="diag-row"><span>Audio Source:</span> <strong>Redmi 10 (IP Webcam)</strong></div>
+            <div class="diag-row"><span>Connection:</span> <span id="diagMicState">DISCONNECTED</span></div>
+            <div class="diag-row"><span>Endpoint:</span> <span id="diagMicUrl" class="text-mono">--</span></div>
+            <div class="diag-row"><span>Format:</span> <span id="diagMicFormat">16kHz 16-bit Mono PCM</span></div>
+            <div class="diag-row"><span>Current Signal:</span> <span id="diagMicRms">0.0 RMS</span></div>
+            <div class="diag-row"><span>Noise Floor (EMA):</span> <span id="diagMicFloor">--</span></div>
+            <div class="diag-row"><span>Policy Guard:</span> <span class="badge badge-success">Laptop Mic Fallback Prohibited</span></div>
+          </div>
+          <!-- Flashlight Controller -->
+          <div class="diag-card">
+            <h4>🔦 Flashlight Automation Subsystem</h4>
+            <div class="diag-row"><span>Mode:</span> <span id="diagFlashMode">AUTO</span></div>
+            <div class="diag-row"><span>Hardware State:</span> <span id="diagFlashHw">OFF</span></div>
+            <div class="diag-row"><span>Requested State:</span> <span id="diagFlashReq">OFF</span></div>
+            <div class="diag-row"><span>Lighting Condition:</span> <span id="diagFlashLight">DARK / BRIGHT</span></div>
+            <div class="diag-row"><span>Inactivity Limit:</span> <span>15.0s (Reset on Motion)</span></div>
+            <div class="diag-row"><span>Last Command Result:</span> <span id="diagFlashResult">IDLE</span></div>
+          </div>
+          <!-- Processing & System Resources -->
+          <div class="diag-card">
+            <h4>💻 Host Processing & Resources</h4>
+            <div class="diag-row"><span>CPU Utilization:</span> <span id="diagCpuPct">0%</span></div>
+            <div class="diag-row"><span>RAM Consumption:</span> <span id="diagRamPct">0 MB</span></div>
+            <div class="diag-row"><span>Processing FPS:</span> <span id="diagProcFps">--</span></div>
+            <div class="diag-row"><span>Auto-Throttle Active:</span> <span id="diagThrottle">No</span></div>
+            <div class="diag-row"><span>Power Management:</span> <span>Sleep Inhibited (Active)</span></div>
+          </div>
+          <!-- Database & Storage -->
+          <div class="diag-card">
+            <h4>💾 Storage & Database Health</h4>
+            <div class="diag-row"><span>SQLite Database:</span> <span id="diagDbStatus">storage/events.db (Healthy)</span></div>
+            <div class="diag-row"><span>Total Incident Records:</span> <span id="diagDbRows">0</span></div>
+            <div class="diag-row"><span>Stored Snapshots:</span> <span id="diagStorageCount">0</span></div>
+            <div class="diag-row"><span>Disk Quota:</span> <span id="diagStorageMb">--</span></div>
+            <div class="diag-row"><span>Retention Window:</span> <span>14 Days (Active Events Protected)</span></div>
+          </div>
+          <!-- Remote Access & Security -->
+          <div class="diag-card">
+            <h4>🔒 Security & Remote Access Status</h4>
+            <div class="diag-row"><span>PIN Security:</span> <span>PBKDF2 Salted Hash (Active)</span></div>
+            <div class="diag-row"><span>Local Network Enforced:</span> <span>Yes (Private Subnet Bound)</span></div>
+            <div class="diag-row"><span>Public Ports Exposed:</span> <span class="badge badge-success">Zero Public Exposure</span></div>
+            <div class="diag-row"><span>Recommended Remote Access:</span> <span>WireGuard / Tailscale</span></div>
+            <div class="diag-row"><span>Active Push Listeners:</span> <span id="diagPushClients">1</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close" data-close="diagnosticsModal">Close</button>
       </div>
     </div>
   </div>

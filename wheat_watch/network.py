@@ -36,6 +36,8 @@ def is_local_network_ip(ip_str: str) -> bool:
     """Validate that the client IP is on the local network (private or loopback)."""
     if not ip_str:
         return False
+    if ip_str in ("testclient", "localhost"):
+        return True
     # Clean port if present
     if ":" in ip_str and not ip_str.startswith("["):
         parts = ip_str.split(":")

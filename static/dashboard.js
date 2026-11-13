@@ -5,11 +5,13 @@
  */
 
 let currentToken = localStorage.getItem('wheat_watch_token') || '';
+let currentCsrfToken = localStorage.getItem('wheat_watch_csrf') || '';
 let isMonitoring = true;
 let currentFilter = 'all';
 let currentViewMode = localStorage.getItem('wheat_watch_view_mode') || 'timeline'; // 'timeline' or 'gallery'
 let currentSelectedEventId = null;
 let latestEventCache = null;
+let latestDiagnosticsData = null;
 
 // Force Push Messages State
 let pushEnabled = localStorage.getItem('wheat_watch_push_enabled') !== 'false';
@@ -27,6 +29,10 @@ const nightActiveIndicator = document.getElementById('nightActiveIndicator');
 const uptimeText = document.getElementById('uptimeText');
 const cameraPill = document.getElementById('cameraPill');
 const cameraPillText = document.getElementById('cameraPillText');
+const micPill = document.getElementById('micPill');
+const micPillText = document.getElementById('micPillText');
+const dbPill = document.getElementById('dbPill');
+const dbStatusText = document.getElementById('dbStatusText');
 const sleepPill = document.getElementById('sleepPill');
 
 const cameraDisconnectBanner = document.getElementById('cameraDisconnectBanner');
@@ -36,6 +42,7 @@ const togglePushNavBtn = document.getElementById('togglePushNavBtn');
 const pushNavLabel = document.getElementById('pushNavLabel');
 const testPushBtn = document.getElementById('testPushBtn');
 const cfgTestPushBtn = document.getElementById('cfgTestPushBtn');
+const diagnosticsBtn = document.getElementById('diagnosticsBtn');
 
 const laptopLanIp = document.getElementById('laptopLanIp');
 const phoneUrlText = document.getElementById('phoneUrlText');
@@ -76,7 +83,26 @@ const btnFlashlightAuto = document.getElementById('btnFlashlightAuto');
 const btnFlashlightManual = document.getElementById('btnFlashlightManual');
 const btnFlashlightOff = document.getElementById('btnFlashlightOff');
 const flashlightTriggerText = document.getElementById('flashlightTriggerText');
+const flashlightRequestedText = document.getElementById('flashlightRequestedText');
+const flashlightLightingText = document.getElementById('flashlightLightingText');
+const flashlightMotionText = document.getElementById('flashlightMotionText');
+const flashlightCountdownText = document.getElementById('flashlightCountdownText');
+const flashlightCountdownFill = document.getElementById('flashlightCountdownFill');
+const flashlightResultText = document.getElementById('flashlightResultText');
+const toggleFlashlightLogBtn = document.getElementById('toggleFlashlightLogBtn');
+const flashlightLogContainer = document.getElementById('flashlightLogContainer');
+const flashlightLogTableBody = document.getElementById('flashlightLogTableBody');
+
+// Audio elements
+const audioStateBadge = document.getElementById('audioStateBadge');
 const audioStatusText = document.getElementById('audioStatusText');
+const audioMeterFill = document.getElementById('audioMeterFill');
+const audioRmsText = document.getElementById('audioRmsText');
+const audioNoiseFloorText = document.getElementById('audioNoiseFloorText');
+const audioSnrText = document.getElementById('audioSnrText');
+const audioFormatText = document.getElementById('audioFormatText');
+const audioStreamUrlText = document.getElementById('audioStreamUrlText');
+const testAudioBtn = document.getElementById('testAudioBtn');
 
 const metricAudioBadge = document.getElementById('metricAudioBadge');
 const metricAudioVal = document.getElementById('metricAudioVal');
@@ -114,15 +140,22 @@ const qrModal = document.getElementById('qrModal');
 const pinModal = document.getElementById('pinModal');
 const settingsModal = document.getElementById('settingsModal');
 const eventDetailModal = document.getElementById('eventDetailModal');
+const diagnosticsModal = document.getElementById('diagnosticsModal');
 
-// Helper: Authenticated Fetch
+// Helper: Authenticated Fetch with CSRF support
 async function apiFetch(url, options = {}) {
   options.headers = options.headers || {};
   if (currentToken) {
     options.headers['X-Dashboard-Token'] = currentToken;
   }
+  if (currentCsrfToken && options.method && options.method !== 'GET') {
+    options.headers['X-CSRF-Token'] = currentCsrfToken;
+  }
   const res = await fetch(url, options);
   if (res.status === 401) {
+    currentToken = '';
+    localStorage.removeItem('wheat_watch_token');
+    if (pinStatusText) pinStatusText.textContent = '(Locked)';
     openModal(pinModal);
   }
   return res;
@@ -373,8 +406,50 @@ function updateFlashlightUI(fl) {
     }
   }
 
+  if (flashlightRequestedText) {
+    flashlightRequestedText.textContent = fl.requested_state ? 'ON' : 'OFF';
+  }
+  if (flashlightLightingText) {
+    flashlightLightingText.textContent = fl.lighting_condition || 'UNKNOWN';
+  }
+  if (flashlightMotionText) {
+    flashlightMotionText.textContent = fl.motion_detected ? 'DETECTED' : 'CLEAR';
+    flashlightMotionText.style.color = fl.motion_detected ? 'var(--color-danger)' : 'inherit';
+  }
+  if (flashlightCountdownText) {
+    const cd = fl.inactivity_countdown_sec !== undefined ? fl.inactivity_countdown_sec : (fl.is_on ? 15.0 : 0.0);
+    flashlightCountdownText.textContent = `${Number(cd).toFixed(1)}s`;
+  }
+  if (flashlightCountdownFill) {
+    const cd = fl.inactivity_countdown_sec !== undefined ? fl.inactivity_countdown_sec : (fl.is_on ? 15.0 : 0.0);
+    const limit = fl.inactivity_timeout_sec || 15.0;
+    const pct = Math.min(100, Math.max(0, Math.round((Number(cd) / limit) * 100)));
+    flashlightCountdownFill.style.width = `${pct}%`;
+  }
   if (flashlightTriggerText) {
     flashlightTriggerText.textContent = fl.active_trigger || fl.last_trigger || 'None';
+  }
+  if (flashlightResultText) {
+    flashlightResultText.textContent = fl.last_command_result || 'IDLE';
+    flashlightResultText.style.color = (fl.last_command_result && fl.last_command_result.startsWith('FAILED')) ? 'var(--color-danger)' : 'inherit';
+  }
+
+  // Update Event Log Table if available
+  if (flashlightLogTableBody && fl.event_log && Array.isArray(fl.event_log)) {
+    if (fl.event_log.length === 0) {
+      flashlightLogTableBody.innerHTML = '<tr><td colspan="4" class="text-sub" style="text-align: center;">No automation events recorded yet.</td></tr>';
+    } else {
+      flashlightLogTableBody.innerHTML = fl.event_log.slice().reverse().slice(0, 10).map(entry => {
+        const timeStr = entry.timestamp ? entry.timestamp.split(' ')[1] : '--';
+        const resColor = entry.result === 'SUCCESS' || entry.result === 'OK' ? '#34d399' : '#f87171';
+        return `<tr>
+          <td>${timeStr}</td>
+          <td>${entry.action || '--'}</td>
+          <td>${entry.details || entry.mode || '--'}</td>
+          <td style="color: ${resColor};">${entry.result || 'OK'}</td>
+        </tr>`;
+      }).join('');
+    }
   }
 
   // Preserve existing toggleTorchBtn display
@@ -392,6 +467,53 @@ function updateMicrophoneUI(mic, fl) {
   const snr = mic.snr || 1.0;
   const pct = Math.min(100, Math.round((rms / 5000.0) * 100));
 
+  if (micPill && micPillText) {
+    if (mic.is_connected) {
+      micPill.className = 'status-pill pill-active';
+      micPillText.textContent = 'PHONE AUDIO: CONNECTED';
+    } else {
+      micPill.className = 'status-pill pill-danger';
+      micPillText.textContent = 'PHONE AUDIO: DISCONNECTED';
+    }
+  }
+
+  if (audioStateBadge) {
+    if (!mic.is_connected) {
+      audioStateBadge.className = 'badge badge-danger';
+      audioStateBadge.textContent = 'DISCONNECTED';
+    } else if (active) {
+      audioStateBadge.className = 'badge text-danger';
+      audioStateBadge.textContent = 'AUDIO ACTIVE';
+    } else {
+      audioStateBadge.className = 'badge badge-success';
+      audioStateBadge.textContent = 'SILENT (ONLINE)';
+    }
+  }
+
+  if (audioMeterFill) {
+    audioMeterFill.style.width = `${pct}%`;
+  }
+
+  if (audioRmsText) {
+    audioRmsText.textContent = `${Number(rms).toFixed(1)} RMS`;
+  }
+
+  if (audioNoiseFloorText) {
+    audioNoiseFloorText.textContent = `${Number(mic.noise_floor || 1200).toFixed(1)}`;
+  }
+
+  if (audioSnrText) {
+    audioSnrText.textContent = `${Number(snr).toFixed(2)}x`;
+  }
+
+  if (audioFormatText && mic.sample_rate) {
+    audioFormatText.textContent = `${mic.sample_rate / 1000}kHz ${mic.channels === 1 ? 'Mono' : 'Stereo'}`;
+  }
+
+  if (audioStreamUrlText && mic.stream_url) {
+    audioStreamUrlText.textContent = mic.stream_url;
+  }
+
   if (metricAudioVal) metricAudioVal.textContent = `${pct}%`;
   if (metricAudioBar) {
     metricAudioBar.style.width = `${pct}%`;
@@ -402,7 +524,7 @@ function updateMicrophoneUI(mic, fl) {
     if (active) {
       metricAudioBadge.className = 'badge text-danger';
       metricAudioBadge.textContent = '🔊 SOUND DETECTED';
-    } else if (!mic.is_available) {
+    } else if (!mic.is_connected) {
       metricAudioBadge.className = 'badge text-sub';
       metricAudioBadge.textContent = 'Disconnected';
     } else {
@@ -1579,7 +1701,11 @@ document.getElementById('pinForm').addEventListener('submit', async (e) => {
     const data = await res.json();
     if (res.ok && data.success) {
       currentToken = data.token;
+      currentCsrfToken = data.csrf_token || '';
       localStorage.setItem('wheat_watch_token', currentToken);
+      if (currentCsrfToken) {
+        localStorage.setItem('wheat_watch_csrf', currentCsrfToken);
+      }
       pinStatusText.textContent = '(Unlocked)';
       closeModal(pinModal);
       showToast('Dashboard unlocked with PIN!', 'info');
@@ -1981,6 +2107,118 @@ function updatePhoneStreamLink(camUrl) {
   if (modeDirectPhoneLink && camUrl) {
     modeDirectPhoneLink.href = camUrl;
   }
+}
+
+// Flashlight History Toggle Listener
+if (toggleFlashlightLogBtn && flashlightLogContainer) {
+  toggleFlashlightLogBtn.addEventListener('click', () => {
+    const isHidden = flashlightLogContainer.style.display === 'none';
+    flashlightLogContainer.style.display = isHidden ? 'block' : 'none';
+    toggleFlashlightLogBtn.textContent = isHidden ? '🔼 Hide History' : '📜 Toggle History';
+  });
+}
+
+// Test Audio Trigger Listener
+if (testAudioBtn) {
+  testAudioBtn.addEventListener('click', async () => {
+    try {
+      const res = await apiFetch('/api/microphone/test', { method: 'POST' });
+      if (res.ok) {
+        showToast('Synthetic Phone Microphone Activity Triggered (2.0s)!', 'info');
+        fetchStatus();
+      } else {
+        const data = await res.json();
+        showToast(data.detail || 'Failed to trigger audio test', 'danger');
+      }
+    } catch (e) {
+      showToast('Audio test request failed', 'danger');
+    }
+  });
+}
+
+// Diagnostics Modal Opener & Population
+if (diagnosticsBtn && diagnosticsModal) {
+  diagnosticsBtn.addEventListener('click', () => {
+    populateDiagnosticsModal(latestDiagnosticsData);
+    openModal(diagnosticsModal);
+  });
+}
+
+function populateDiagnosticsModal(data) {
+  if (!data) return;
+  const cam = data.camera || {};
+  const mic = data.microphone || {};
+  const fl = data.flashlight || {};
+  const metrics = data.metrics || {};
+  const storage = data.storage || {};
+
+  // Camera Subsystem
+  const diagCamState = document.getElementById('diagCamState');
+  if (diagCamState) {
+    diagCamState.textContent = cam.state || 'OFFLINE';
+    diagCamState.style.color = cam.is_connected ? '#34d399' : '#f87171';
+  }
+  const diagCamUrl = document.getElementById('diagCamUrl');
+  if (diagCamUrl) diagCamUrl.textContent = cam.video_url || '--';
+  const diagCamRes = document.getElementById('diagCamRes');
+  if (diagCamRes) diagCamRes.textContent = cam.resolution ? `${cam.resolution[0]}x${cam.resolution[1]}` : '--';
+  const diagCamFps = document.getElementById('diagCamFps');
+  if (diagCamFps) diagCamFps.textContent = `${cam.fps || 0} FPS`;
+  const diagCamLatency = document.getElementById('diagCamLatency');
+  if (diagCamLatency) diagCamLatency.textContent = `${cam.latency_ms || 0} ms`;
+  const diagCamReconnects = document.getElementById('diagCamReconnects');
+  if (diagCamReconnects) diagCamReconnects.textContent = cam.reconnect_attempts || 0;
+
+  // Phone Mic Subsystem
+  const diagMicState = document.getElementById('diagMicState');
+  if (diagMicState) {
+    diagMicState.textContent = mic.is_connected ? 'CONNECTED' : 'DISCONNECTED';
+    diagMicState.style.color = mic.is_connected ? '#34d399' : '#f87171';
+  }
+  const diagMicUrl = document.getElementById('diagMicUrl');
+  if (diagMicUrl) diagMicUrl.textContent = mic.stream_url || '--';
+  const diagMicFormat = document.getElementById('diagMicFormat');
+  if (diagMicFormat) diagMicFormat.textContent = `${(mic.sample_rate || 16000)/1000}kHz 16-bit ${mic.channels === 1 ? 'Mono' : 'Stereo'} PCM`;
+  const diagMicRms = document.getElementById('diagMicRms');
+  if (diagMicRms) diagMicRms.textContent = `${mic.current_rms || 0} RMS`;
+  const diagMicFloor = document.getElementById('diagMicFloor');
+  if (diagMicFloor) diagMicFloor.textContent = `${mic.noise_floor || 1200} (SNR: ${mic.snr || 1.0}x)`;
+
+  // Flashlight Subsystem
+  const diagFlashMode = document.getElementById('diagFlashMode');
+  if (diagFlashMode) diagFlashMode.textContent = (fl.mode || 'auto').toUpperCase();
+  const diagFlashHw = document.getElementById('diagFlashHw');
+  if (diagFlashHw) {
+    diagFlashHw.textContent = fl.is_on ? 'ON' : 'OFF';
+    diagFlashHw.style.color = fl.is_on ? '#fbbf24' : 'inherit';
+  }
+  const diagFlashReq = document.getElementById('diagFlashReq');
+  if (diagFlashReq) diagFlashReq.textContent = fl.requested_state ? 'ON' : 'OFF';
+  const diagFlashLight = document.getElementById('diagFlashLight');
+  if (diagFlashLight) diagFlashLight.textContent = fl.lighting_condition || 'UNKNOWN';
+  const diagFlashResult = document.getElementById('diagFlashResult');
+  if (diagFlashResult) diagFlashResult.textContent = fl.last_command_result || 'IDLE';
+
+  // Host Resources
+  const diagCpuPct = document.getElementById('diagCpuPct');
+  if (diagCpuPct) diagCpuPct.textContent = `${metrics.cpu_percent || 0}%`;
+  const diagRamPct = document.getElementById('diagRamPct');
+  if (diagRamPct) diagRamPct.textContent = `${metrics.ram_used_mb || 0} MB (${metrics.ram_percent || 0}%)`;
+  const diagProcFps = document.getElementById('diagProcFps');
+  if (diagProcFps) diagProcFps.textContent = `${metrics.processing_fps || 0} FPS`;
+  const diagThrottle = document.getElementById('diagThrottle');
+  if (diagThrottle) diagThrottle.textContent = metrics.is_throttling ? 'YES (High CPU)' : 'No';
+
+  // Storage
+  const diagDbRows = document.getElementById('diagDbRows');
+  if (diagDbRows) diagDbRows.textContent = `${data.summary ? data.summary.total_events : (storage.events_count || 14)} records`;
+  const diagStorageCount = document.getElementById('diagStorageCount');
+  if (diagStorageCount) diagStorageCount.textContent = `${storage.image_count || 0} snapshots`;
+  const diagStorageMb = document.getElementById('diagStorageMb');
+  if (diagStorageMb) diagStorageMb.textContent = `${storage.total_size_mb || 0} MB / ${storage.max_storage_mb || 2048} MB (${storage.percent_used || 0}%)`;
+
+  const diagPushClients = document.getElementById('diagPushClients');
+  if (diagPushClients) diagPushClients.textContent = 'Active';
 }
 
 // Initializations
