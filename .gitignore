@@ -18,3 +18,10 @@ storage/events/*.jpg
 storage/backups/*.db
 storage/temp_recordings/
 *.mp4
+
+# Presentation, slide decks & screenshot capture utilities
+presentation/
+*.pptx
+generate_powerpoint.py
+capture_presentation_screens.py
+
