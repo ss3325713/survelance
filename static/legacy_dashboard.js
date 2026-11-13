@@ -1879,7 +1879,7 @@ document.getElementById('cfgTestCamBtn').addEventListener('click', async () => {
 // Quick Test Camera button on main view
 testCamBtn.addEventListener('click', async () => {
   showToast('Testing camera connection...', 'info');
-  const ip = document.getElementById('cfgPhoneIp').value.trim() || '192.168.31.211';
+  const ip = document.getElementById('cfgPhoneIp').value.trim() || '127.0.0.1';
   const port = parseInt(document.getElementById('cfgPhonePort').value, 10) || 8080;
   try {
     const res = await fetch('/api/camera/test', {

@@ -32,20 +32,22 @@ def main():
     lan_ip = get_lan_ip()
     host = app_config.server.get("host", "0.0.0.0")
     port = app_config.server.get("port", 8000)
-    phone_ip = app_config.camera.get("phone_ip", "192.168.31.211")
-    phone_port = app_config.camera.get("phone_port", 8080)
+    video_url = app_config.camera_video_url
+    audio_url = app_config.camera_audio_url
+    camera_profile = app_config.camera.get("device_profile", "auto")
 
     banner = f"""
 ========================================================================
 🛡️  PySURVEILLANCE — Intelligent Security & Field Defense Console
 ========================================================================
  [✓] Local Network Binding : {host}:{port}
- [✓] Laptop Access URL     : http://127.0.0.1:{port}
- [✓] Phone Dashboard URL   : http://{lan_ip}:{port}
- [✓] Redmi 10 Camera       : http://{phone_ip}:{phone_port}/video
- [✓] Redmi 10 Microphone   : http://{phone_ip}:{phone_port}/audio.wav
+ [✓] Local Console URL     : http://127.0.0.1:{port}
+ [✓] Remote Dashboard URL  : http://{lan_ip}:{port}
+ [✓] Camera Stream URL     : {video_url}
+ [✓] Audio Stream URL      : {audio_url}
+ [✓] Camera Profile        : {camera_profile.upper()}
  [✓] Hardware Flashlight   : Motion-Triggered (15s Inactivity Timeout)
- [✓] Audio Engine Active   : Laptop system speakers (paplay/aplay)
+ [✓] Audio Engine Active   : Host system speakers (paplay/aplay)
  [✓] Security Firewall     : Local LAN Enforced | PBKDF2 PIN Protected
  [✓] Power Manager         : systemd-inhibit active monitoring
 ========================================================================

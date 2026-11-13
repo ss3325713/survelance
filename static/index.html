@@ -121,8 +121,8 @@
         <div class="host-badge">
           <span class="host-dot"></span>
           <div class="host-info">
-            <span class="host-name">HP EliteBook 745</span>
-            <span class="host-status" id="sidebarHostStatus">Linux Mint • Sleep Inhibited</span>
+            <span class="host-name" id="sidebarHostName">Linux Host</span>
+            <span class="host-status" id="sidebarHostStatus">Linux • Sleep Inhibited</span>
           </div>
         </div>
         <button id="sidebarPinBtn" class="pin-quick-btn" title="Unlock / Lock PIN Protected Operations">
@@ -182,20 +182,20 @@
 
         <div class="topbar-right">
           <!-- Hardware Subsystem Health Pills -->
-          <div id="cameraPill" class="soc-pill pill-warning" title="Redmi 10 Camera Connection">
+          <div id="cameraPill" class="soc-pill pill-warning" title="Camera Stream Connection">
             <span class="pill-dot"></span>
             <span id="cameraPillText">CAM: CONNECTING</span>
           </div>
 
-          <div id="micPill" class="soc-pill pill-danger" title="Redmi 10 Phone Microphone Audio Stream">
+          <div id="micPill" class="soc-pill pill-danger" title="Audio Stream Connection">
             <span class="pill-dot"></span>
             <span id="micPillText">MIC: DISCONNECTED</span>
           </div>
 
-          <!-- Redmi 10 Hardware, Battery & Temperature -->
-          <div id="topbarPhonePill" class="soc-pill pill-subtle" title="Redmi 10 Phone Battery & Temperature">
+          <!-- Camera Device Hardware, Battery & Temperature -->
+          <div id="topbarPhonePill" class="soc-pill pill-subtle" title="Camera Device Telemetry">
             <span id="topbarPhoneBatteryIcon">🔋</span>
-            <span id="topbarPhoneBatteryText">BATTERY: --</span>
+            <span id="topbarPhoneBatteryText">DEVICE: --</span>
             <span id="topbarPhoneTempText" style="margin-left: 4px; color: #38bdf8; display: none;">🌡️ --°C</span>
           </div>
 
@@ -247,16 +247,16 @@
                 <span class="stat-badge" id="overviewCamBadge">CONNECTING</span>
               </div>
               <div class="stat-value" id="overviewFpsValue">-- FPS</div>
-              <div class="stat-meta" id="overviewCamMeta">Target: http://192.168.31.211:8080/video</div>
+              <div class="stat-meta" id="overviewCamMeta">Target: Connecting...</div>
             </div>
 
             <div class="stat-card">
               <div class="stat-card-header">
-                <span class="stat-label">PHONE MICROPHONE</span>
+                <span class="stat-label">AUDIO STREAM</span>
                 <span class="stat-badge" id="overviewMicBadge">DISCONNECTED</span>
               </div>
               <div class="stat-value" id="overviewMicRms">0.0 RMS</div>
-              <div class="stat-meta">Source: Redmi 10 (/audio.wav)</div>
+              <div class="stat-meta" id="overviewAudioMeta">Source: Network Audio Stream</div>
             </div>
 
             <div class="stat-card">
@@ -416,7 +416,7 @@
                   <div class="stream-tab-pills">
                     <button id="modeMjpegBtn" class="stream-pill active">🔴 MJPEG</button>
                     <button id="modeCanvasBtn" class="stream-pill">⚡ Canvas Safe</button>
-                    <a id="modeDirectPhoneLink" href="http://192.168.31.211:8080/video" target="_blank" class="stream-pill">📱 Direct Phone</a>
+                    <a id="modeDirectPhoneLink" href="#" target="_blank" class="stream-pill">📱 Direct Stream</a>
                   </div>
                 </div>
                 <div class="hud-controls-right">
@@ -495,14 +495,14 @@
                     <button id="camFastRefreshBtn" class="btn btn-outline btn-sm">⚡ Fast Refresh</button>
                   </div>
                   <div class="network-quick-info mt-2">
-                    <span>Phone IP: <code>192.168.31.211:8080</code></span>
+                    <span id="camHostDisplay">Camera Stream: <code>Connecting...</code></span>
                   </div>
 
-                  <!-- Redmi 10 Live Telemetry & Battery -->
+                  <!-- Camera Device Live Telemetry & Diagnostics -->
                   <div class="phone-telemetry-box mt-3" style="background: var(--bg-surface); padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); font-size: 0.78rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                      <span class="text-sub">Device Model:</span>
-                      <strong id="livePhoneModel">Redmi 10 (IP Webcam)</strong>
+                      <span class="text-sub">Device Profile:</span>
+                      <strong id="livePhoneModel">Network Camera</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                       <span class="text-sub">Battery Level:</span>
@@ -750,8 +750,8 @@
         <section class="soc-view" id="view-audio">
           <div class="view-header">
             <div>
-              <h2>Redmi 10 Smartphone Audio Monitor</h2>
-              <p class="view-subtitle">Live linear PCM audio streaming exclusively from the phone microphone. Host laptop microphone is prohibited.</p>
+              <h2>Camera Microphone Audio Monitor</h2>
+              <p class="view-subtitle">Live linear PCM audio streaming exclusively from the network audio source. Host microphone fallback is prohibited.</p>
             </div>
             <div class="view-header-actions">
               <button id="testAudioBtn" class="btn btn-primary btn-sm">🔊 Test Audio Trigger</button>
@@ -767,7 +767,7 @@
               </div>
               <div class="panel-body">
                 <div class="audio-stream-source-tag">
-                  Stream URL: <code id="audioStreamUrlText">http://192.168.31.211:8080/audio.wav</code>
+                  Stream URL: <code id="audioStreamUrlText">Loading...</code>
                 </div>
 
                 <!-- Responsive Level Bar -->
@@ -815,8 +815,8 @@
                 <div class="policy-card-content">
                   <p><strong>Strict Sensor Routing Policy:</strong></p>
                   <ul>
-                    <li>The Redmi 10 smartphone is the exclusive audio source for PySURVEILLANCE.</li>
-                    <li>The host laptop microphone is <strong>never selected</strong> or used as a fallback.</li>
+                    <li>The network camera stream is the primary audio source for PySURVEILLANCE.</li>
+                    <li>The host microphone is <strong>never selected</strong> or used as a fallback.</li>
                     <li>Browser <code>getUserMedia()</code> is prohibited.</li>
                     <li>Zero persistent audio recordings are created or stored on disk (energy calculations are purely in-memory).</li>
                     <li>Audio activity does <strong>NOT</strong> independently trigger the flashlight.</li>
@@ -834,7 +834,7 @@
           <div class="view-header">
             <div>
               <h2>Intelligent Flashlight Automation</h2>
-              <p class="view-subtitle">Redmi 10 hardware LED torch automation driven by visual motion in darkness with 15-second timeout.</p>
+              <p class="view-subtitle">Hardware LED torch automation driven by visual motion in darkness with 15-second timeout.</p>
             </div>
             <span id="flashlightStatusPill" class="badge">AUTO [OFF]</span>
           </div>
@@ -905,7 +905,7 @@
           <div class="view-header">
             <div>
               <h2>System Analytics & Host Performance</h2>
-              <p class="view-subtitle">HP EliteBook 745 G2 hardware resource utilization, SQLite database metrics, and storage retention.</p>
+              <p class="view-subtitle">Host hardware resource utilization, SQLite database metrics, and storage retention.</p>
             </div>
             <div class="view-header-actions">
               <button id="analyticsBackupBtn" class="btn btn-primary btn-sm">💾 Create Hot DB Backup</button>
@@ -1008,8 +1008,16 @@ sudo tailscale up</pre>
               <div class="panel-body">
                 <div class="form-row">
                   <div class="form-group">
-                    <label>Phone IPv4 Address</label>
-                    <input type="text" id="cfgPhoneIp" class="soc-input" value="192.168.31.211">
+                    <label>Camera Device Profile</label>
+                    <select id="cfgDeviceProfile" class="soc-input">
+                      <option value="auto">Auto-Detect / IP Webcam</option>
+                      <option value="ip_webcam">Android / IP Webcam</option>
+                      <option value="generic">Generic IP Camera / RTSP</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Camera Host / IPv4 Address</label>
+                    <input type="text" id="cfgPhoneIp" class="soc-input" placeholder="e.g. 192.168.1.100 or camera.local">
                   </div>
                   <div class="form-group">
                     <label>Camera Port</label>
@@ -1028,6 +1036,20 @@ sudo tailscale up</pre>
                   <div class="form-group">
                     <label>Audio Stream Endpoint</label>
                     <input type="text" id="cfgAudioEp" class="soc-input" value="/audio.wav">
+                  </div>
+                </div>
+                <div class="form-row mt-2">
+                  <div class="form-group" style="flex: 2;">
+                    <label>Direct Video Stream URL (HTTP/MJPEG or RTSP) <span class="text-sub">(Optional Override)</span></label>
+                    <input type="text" id="cfgVideoUrl" class="soc-input" placeholder="e.g. rtsp://192.168.1.100:554/h264 or http://192.168.1.100:8080/video">
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label>Direct Snapshot URL <span class="text-sub">(Optional)</span></label>
+                    <input type="text" id="cfgSnapshotUrl" class="soc-input" placeholder="e.g. http://192.168.1.100:8080/shot.jpg">
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label>Direct Audio URL <span class="text-sub">(Optional)</span></label>
+                    <input type="text" id="cfgAudioUrl" class="soc-input" placeholder="e.g. http://192.168.1.100:8080/audio.wav">
                   </div>
                 </div>
               </div>
@@ -1177,13 +1199,39 @@ sudo tailscale up</pre>
         <button class="modal-close-btn" data-close="qrModal">&times;</button>
       </div>
       <div class="soc-modal-body text-center">
-        <p class="text-sub">Scan with Redmi 10 or any phone on the local Wi-Fi network:</p>
+        <p class="text-sub">Scan with any smartphone or device on the local network:</p>
         <div id="qrCodeContainer" class="qr-code-img mt-2"></div>
         <div class="phone-url-display mt-2">
           <a id="phoneUrlLink" href="#" target="_blank"><code id="phoneUrlText">Loading...</code></a>
           <button id="copyUrlBtn" class="btn btn-outline btn-sm ml-2">📋 Copy</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- First-Run Master PIN Setup Modal -->
+  <div id="firstRunPinModal" class="soc-modal">
+    <div class="soc-modal-box modal-sm">
+      <div class="soc-modal-header">
+        <h3>🛡️ Initialize Master PIN</h3>
+      </div>
+      <form id="firstRunPinForm">
+        <div class="soc-modal-body">
+          <p class="text-sub">Welcome to PySURVEILLANCE. Create your master security PIN to protect configuration and administrative controls (minimum 4 characters):</p>
+          <div class="form-group mt-2">
+            <label for="setupPinInput" class="text-sub">New Master PIN</label>
+            <input type="password" id="setupPinInput" class="soc-input text-center" placeholder="Create PIN" minlength="4" maxlength="32" autofocus required>
+          </div>
+          <div class="form-group mt-2">
+            <label for="setupPinConfirmInput" class="text-sub">Confirm Master PIN</label>
+            <input type="password" id="setupPinConfirmInput" class="soc-input text-center" placeholder="Confirm PIN" minlength="4" maxlength="32" required>
+          </div>
+          <div id="firstRunPinError" class="auth-error-msg mt-2"></div>
+        </div>
+        <div class="soc-modal-footer">
+          <button type="submit" id="btnSaveInitialPin" class="btn btn-primary w-100">Set Master PIN & Proceed</button>
+        </div>
+      </form>
     </div>
   </div>
 

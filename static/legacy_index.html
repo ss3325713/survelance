@@ -133,7 +133,7 @@
         <div class="stream-mode-tabs">
           <button id="modeMjpegBtn" class="stream-tab active" title="Multiplexed MJPEG stream">🔴 MJPEG Stream</button>
           <button id="modeCanvasBtn" class="stream-tab" title="Direct high-speed Canvas snapshot (Brave/Chrome safe)">⚡ Fast Refresh</button>
-          <a id="modeDirectPhoneLink" href="http://192.168.31.211:8080/video" target="_blank" class="stream-tab" title="Direct raw connection to Redmi 10">📱 Direct Phone</a>
+          <a id="modeDirectPhoneLink" href="#" target="_blank" class="stream-tab" title="Direct raw connection to camera">📱 Direct Stream</a>
         </div>
         <div class="stream-telemetry">
           <span class="badge" id="telemetryFps">Cam: -- FPS</span>
@@ -312,7 +312,7 @@
           <!-- Stream Endpoint & Action Row -->
           <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.4rem; border-top: 1px solid rgba(255, 255, 255, 0.05);">
             <div class="text-mono" id="audioStreamUrlText" style="color: var(--text-sub); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; max-width: 65%;">
-              http://192.168.31.211:8080/audio.wav
+              /audio.wav
             </div>
             <button id="testAudioBtn" class="btn btn-outline btn-sm" style="font-size: 0.7rem;">🔊 Test Trigger</button>
           </div>
@@ -527,7 +527,7 @@
           <div class="form-row">
             <div class="form-group">
               <label>Phone IP Address</label>
-              <input type="text" id="cfgPhoneIp" class="form-input" value="192.168.31.211">
+              <input type="text" id="cfgPhoneIp" class="form-input" placeholder="e.g. 192.168.1.100">
             </div>
             <div class="form-group">
               <label>Port</label>

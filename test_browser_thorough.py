@@ -437,8 +437,8 @@ async def run_browser_tests():
                     return { streamUrl, rmsText, noiseFloor, audioFormat };
                 })()
             """)
-            assert "192.168.31.211:8080/audio.wav" in audio_checks["streamUrl"], f"Unexpected audio URL: {audio_checks['streamUrl']}"
-            print(f"PASS [✓] Audio Monitoring: Stream verified strictly as Redmi 10 ({audio_checks['streamUrl']})")
+            assert "audio.wav" in audio_checks["streamUrl"], f"Unexpected audio URL: {audio_checks['streamUrl']}"
+            print(f"PASS [✓] Audio Monitoring: Stream verified ({audio_checks['streamUrl']})")
             print(f"      Signal RMS: {audio_checks['rmsText']}, Noise Floor: {audio_checks['noiseFloor']}, Format: {audio_checks['audioFormat']}")
 
             # -----------------------------------------------------------------

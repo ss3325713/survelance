@@ -293,11 +293,15 @@
 
     // Settings
     DOM.saveGlobalSettingsBtn = document.getElementById('saveGlobalSettingsBtn');
+    DOM.cfgDeviceProfile = document.getElementById('cfgDeviceProfile');
     DOM.cfgPhoneIp = document.getElementById('cfgPhoneIp');
     DOM.cfgPhonePort = document.getElementById('cfgPhonePort');
     DOM.cfgVideoEp = document.getElementById('cfgVideoEp');
     DOM.cfgSnapshotEp = document.getElementById('cfgSnapshotEp');
     DOM.cfgAudioEp = document.getElementById('cfgAudioEp');
+    DOM.cfgVideoUrl = document.getElementById('cfgVideoUrl');
+    DOM.cfgSnapshotUrl = document.getElementById('cfgSnapshotUrl');
+    DOM.cfgAudioUrl = document.getElementById('cfgAudioUrl');
     DOM.cfgMotionFps = document.getElementById('cfgMotionFps');
     DOM.cfgAiFps = document.getElementById('cfgAiFps');
     DOM.cfgMotionThresh = document.getElementById('cfgMotionThresh');
@@ -330,6 +334,17 @@
     DOM.pinForm = document.getElementById('pinForm');
     DOM.pinInput = document.getElementById('pinInput');
     DOM.pinError = document.getElementById('pinError');
+
+    DOM.firstRunPinModal = document.getElementById('firstRunPinModal');
+    DOM.firstRunPinForm = document.getElementById('firstRunPinForm');
+    DOM.setupPinInput = document.getElementById('setupPinInput');
+    DOM.setupPinConfirmInput = document.getElementById('setupPinConfirmInput');
+    DOM.firstRunPinError = document.getElementById('firstRunPinError');
+    DOM.btnSaveInitialPin = document.getElementById('btnSaveInitialPin');
+
+    DOM.overviewAudioMeta = document.getElementById('overviewAudioMeta');
+    DOM.camHostDisplay = document.getElementById('camHostDisplay');
+    DOM.sidebarHostName = document.getElementById('sidebarHostName');
 
     DOM.eventDetailModal = document.getElementById('eventDetailModal');
     DOM.eventDetailTitle = document.getElementById('eventDetailTitle');
@@ -841,6 +856,16 @@
       }
     }
 
+    // Host System Telemetry
+    if (s.host_system) {
+      if (DOM.sidebarHostName) {
+        DOM.sidebarHostName.textContent = s.host_system.hostname || 'Linux Host';
+      }
+      if (DOM.sidebarHostStatus) {
+        DOM.sidebarHostStatus.textContent = `${s.host_system.system || 'Linux'} • Operational`;
+      }
+    }
+
     // Camera Subsystem
     const camOk = cam.is_online !== undefined ? !!cam.is_online : !!s.camera_connected;
     if (DOM.cameraPill) {
@@ -852,6 +877,15 @@
     if (DOM.overviewCamBadge) {
       DOM.overviewCamBadge.className = `stat-badge ${camOk ? 'badge-success' : 'badge-danger'}`;
       DOM.overviewCamBadge.textContent = camOk ? 'ONLINE' : 'DISCONNECTED';
+    }
+    if (DOM.overviewCamMeta) {
+      DOM.overviewCamMeta.textContent = `Target: ${cam.stream_url || cam.phone_ip || 'Connected'}`;
+    }
+    if (DOM.camHostDisplay) {
+      DOM.camHostDisplay.innerHTML = `Camera: <code>${cam.stream_url || (cam.phone_ip ? cam.phone_ip + ':' + (cam.phone_port || 8080) : 'Connected')}</code>`;
+    }
+    if (DOM.modeDirectPhoneLink && cam.stream_url) {
+      DOM.modeDirectPhoneLink.href = cam.stream_url;
     }
     if (DOM.cameraDisconnectBanner) {
       DOM.cameraDisconnectBanner.style.display = camOk ? 'none' : 'flex';
@@ -873,13 +907,13 @@
       DOM.selectResolutionVal.textContent = cam.last_working_resolution;
     }
 
-    // Phone Microphone Subsystem
+    // Audio Subsystem
     const micOk = audio.is_connected !== undefined ? !!audio.is_connected : !!audio.connected;
     if (DOM.micPill) {
       DOM.micPill.className = `soc-pill ${micOk ? 'pill-success' : 'pill-danger'}`;
     }
     if (DOM.micPillText) {
-      DOM.micPillText.textContent = micOk ? 'PHONE MIC: STREAMING' : 'PHONE MIC: DISCONNECTED';
+      DOM.micPillText.textContent = micOk ? 'MIC: STREAMING' : 'MIC: DISCONNECTED';
     }
     if (DOM.sidebarAudioDot) {
       DOM.sidebarAudioDot.className = `nav-dot ${micOk ? 'connected' : ''}`;
@@ -888,9 +922,15 @@
       DOM.overviewMicBadge.className = `stat-badge ${micOk ? 'badge-success' : 'badge-danger'}`;
       DOM.overviewMicBadge.textContent = micOk ? 'STREAMING' : 'OFFLINE';
     }
+    if (DOM.overviewAudioMeta) {
+      DOM.overviewAudioMeta.textContent = `Source: ${audio.source || 'Network Audio'}`;
+    }
     if (DOM.audioStateBadge) {
       DOM.audioStateBadge.className = `badge ${micOk ? 'badge-success' : 'badge-danger'}`;
-      DOM.audioStateBadge.textContent = micOk ? 'STREAMING (Redmi 10)' : 'DISCONNECTED';
+      DOM.audioStateBadge.textContent = micOk ? 'STREAMING' : 'DISCONNECTED';
+    }
+    if (DOM.audioStreamUrlText && audio.stream_url) {
+      DOM.audioStreamUrlText.textContent = audio.stream_url;
     }
 
     const rawRms = audio.current_rms !== undefined ? audio.current_rms : (audio.rms || 0);
@@ -1000,13 +1040,14 @@
     if (night.active_mode && DOM.detActiveProfile) DOM.detActiveProfile.textContent = night.active_mode.toUpperCase();
     if (night.measured_brightness && DOM.detMeasuredLux) DOM.detMeasuredLux.textContent = `${night.measured_brightness.toFixed(1)} lux`;
 
-    // Redmi 10 Phone Telemetry & Battery
+    // Camera Device Telemetry & Battery
     const phone = s.phone_device || {};
     const phoneOk = phone.is_online !== undefined ? !!phone.is_online : camOk;
     const hasSensors = !!phone.sensors_logging_enabled;
     const battLevel = phone.battery_level;
     const battTemp = phone.battery_temp;
     const battVolt = phone.battery_voltage;
+    const devModel = phone.model || 'Camera Device';
 
     if (DOM.topbarPhonePill) {
       if (battLevel !== null && battLevel !== undefined) {
@@ -1015,7 +1056,7 @@
           DOM.topbarPhoneBatteryIcon.textContent = battLevel < 20 ? '🪫' : (battLevel < 50 ? '🔋' : '⚡');
         }
       } else {
-        DOM.topbarPhoneBatteryText.textContent = phoneOk ? 'REDMI 10: ONLINE' : 'REDMI 10: OFFLINE';
+        DOM.topbarPhoneBatteryText.textContent = phoneOk ? `${devModel.toUpperCase()}: ONLINE` : `${devModel.toUpperCase()}: OFFLINE`;
       }
 
       if (DOM.topbarPhoneTempText) {
@@ -1037,7 +1078,7 @@
         DOM.overviewPhoneBatteryVal.textContent = `${battLevel}%`;
         DOM.overviewPhoneBatteryVal.style.color = battLevel < 20 ? '#ef4444' : (battLevel < 50 ? '#f59e0b' : '#38bdf8');
       } else {
-        DOM.overviewPhoneBatteryVal.textContent = phoneOk ? 'Connected' : 'Offline';
+        DOM.overviewPhoneBatteryVal.textContent = phoneOk ? (phone.battery_status || 'External Power (AC/PoE)') : 'Offline';
         DOM.overviewPhoneBatteryVal.style.color = '#38bdf8';
       }
     }
@@ -1045,7 +1086,8 @@
       if (battTemp !== null && battTemp !== undefined) {
         DOM.overviewPhoneTempMeta.textContent = `Temp: ${battTemp}°C | Voltage: ${battVolt ? battVolt + ' V' : '--'}`;
       } else {
-        DOM.overviewPhoneTempMeta.textContent = `Model: Redmi 10 | Target: ${phone.phone_ip || '192.168.31.211'}`;
+        const hostTarget = phone.phone_ip || phone.camera_host || 'Configured Stream';
+        DOM.overviewPhoneTempMeta.textContent = `Model: ${devModel} | Target: ${hostTarget}`;
       }
     }
     if (DOM.overviewPhoneSensorsStatus) {
@@ -1056,7 +1098,7 @@
       }
     }
 
-    if (DOM.livePhoneModel) DOM.livePhoneModel.textContent = phone.model || 'Redmi 10 (IP Webcam)';
+    if (DOM.livePhoneModel) DOM.livePhoneModel.textContent = phone.model || 'Network Camera';
     if (DOM.livePhoneBattery) {
       DOM.livePhoneBattery.textContent = (battLevel !== null && battLevel !== undefined) ? `${battLevel}%` : 'Logging Inactive';
       if (battLevel !== null) {
@@ -1898,7 +1940,7 @@
     // Test Audio trigger
     if (DOM.testAudioBtn) {
       DOM.testAudioBtn.addEventListener('click', async () => {
-        showToast('Simulating test audio trigger from Redmi 10...', 'info');
+        showToast('Simulating test audio trigger...', 'info');
         await apiFetch('/api/microphone/test', { method: 'POST' });
         pollStatus();
       });
@@ -2049,10 +2091,13 @@
         const res = await apiFetch('/api/camera/test', {
           method: 'POST',
           body: {
-            phone_ip: DOM.cfgPhoneIp ? DOM.cfgPhoneIp.value : '192.168.31.211',
+            camera_host: DOM.cfgPhoneIp ? DOM.cfgPhoneIp.value.trim() : '',
+            phone_ip: DOM.cfgPhoneIp ? DOM.cfgPhoneIp.value.trim() : '',
+            camera_port: DOM.cfgPhonePort ? parseInt(DOM.cfgPhonePort.value) : 8080,
             phone_port: DOM.cfgPhonePort ? parseInt(DOM.cfgPhonePort.value) : 8080,
-            video_endpoint: '/video',
-            snapshot_endpoint: '/shot.jpg'
+            video_endpoint: DOM.cfgVideoEp ? DOM.cfgVideoEp.value.trim() : '/video',
+            snapshot_endpoint: DOM.cfgSnapshotEp ? DOM.cfgSnapshotEp.value.trim() : '/shot.jpg',
+            video_url: DOM.cfgVideoUrl ? DOM.cfgVideoUrl.value.trim() : ''
           }
         });
         if (res.ok) {
@@ -2430,11 +2475,15 @@
       const flash = cfg.flashlight || {};
       const storage = cfg.storage || {};
 
-      if (DOM.cfgPhoneIp) DOM.cfgPhoneIp.value = cam.phone_ip || cfg.phone_ip || '192.168.31.211';
-      if (DOM.cfgPhonePort) DOM.cfgPhonePort.value = cam.phone_port || cfg.phone_port || 8080;
+      if (DOM.cfgPhoneIp) DOM.cfgPhoneIp.value = cam.camera_host || cam.phone_ip || cfg.camera_host || cfg.phone_ip || '';
+      if (DOM.cfgPhonePort) DOM.cfgPhonePort.value = cam.camera_port || cam.phone_port || cfg.camera_port || cfg.phone_port || 8080;
       if (DOM.cfgVideoEp) DOM.cfgVideoEp.value = cam.video_endpoint || cfg.video_endpoint || '/video';
       if (DOM.cfgSnapshotEp) DOM.cfgSnapshotEp.value = cam.snapshot_endpoint || cfg.snapshot_endpoint || '/shot.jpg';
       if (DOM.cfgAudioEp) DOM.cfgAudioEp.value = cam.audio_endpoint || cfg.audio_endpoint || '/audio.wav';
+      if (DOM.cfgVideoUrl) DOM.cfgVideoUrl.value = cam.video_url || '';
+      if (DOM.cfgSnapshotUrl) DOM.cfgSnapshotUrl.value = cam.snapshot_url || '';
+      if (DOM.cfgAudioUrl) DOM.cfgAudioUrl.value = cam.audio_url || '';
+      if (DOM.cfgDeviceProfile) DOM.cfgDeviceProfile.value = cam.device_profile || 'auto';
 
       if (DOM.cfgMotionFps) DOM.cfgMotionFps.value = pipe.motion_fps || cfg.motion_fps || 8;
       if (DOM.cfgAiFps) DOM.cfgAiFps.value = pipe.ai_fps || cfg.ai_fps || 1.5;
@@ -2506,11 +2555,17 @@
       DOM.saveGlobalSettingsBtn.addEventListener('click', async () => {
         const payload = {
           camera: {
-            phone_ip: DOM.cfgPhoneIp.value.trim(),
-            phone_port: parseInt(DOM.cfgPhonePort.value),
-            video_endpoint: DOM.cfgVideoEp.value.trim(),
-            snapshot_endpoint: DOM.cfgSnapshotEp.value.trim(),
-            audio_endpoint: DOM.cfgAudioEp.value.trim()
+            camera_host: DOM.cfgPhoneIp ? DOM.cfgPhoneIp.value.trim() : '',
+            phone_ip: DOM.cfgPhoneIp ? DOM.cfgPhoneIp.value.trim() : '',
+            camera_port: DOM.cfgPhonePort ? parseInt(DOM.cfgPhonePort.value) : 8080,
+            phone_port: DOM.cfgPhonePort ? parseInt(DOM.cfgPhonePort.value) : 8080,
+            video_endpoint: DOM.cfgVideoEp ? DOM.cfgVideoEp.value.trim() : '/video',
+            snapshot_endpoint: DOM.cfgSnapshotEp ? DOM.cfgSnapshotEp.value.trim() : '/shot.jpg',
+            audio_endpoint: DOM.cfgAudioEp ? DOM.cfgAudioEp.value.trim() : '/audio.wav',
+            video_url: DOM.cfgVideoUrl ? DOM.cfgVideoUrl.value.trim() : '',
+            snapshot_url: DOM.cfgSnapshotUrl ? DOM.cfgSnapshotUrl.value.trim() : '',
+            audio_url: DOM.cfgAudioUrl ? DOM.cfgAudioUrl.value.trim() : '',
+            device_profile: DOM.cfgDeviceProfile ? DOM.cfgDeviceProfile.value : 'auto'
           },
           pipeline: {
             motion_fps: parseFloat(DOM.cfgMotionFps.value),
@@ -2591,6 +2646,31 @@
     setTimeout(() => { if (DOM.pinInput) DOM.pinInput.focus(); }, 150);
   }
 
+  function openFirstRunPinModal() {
+    if (DOM.firstRunPinError) DOM.firstRunPinError.textContent = '';
+    if (DOM.setupPinInput) DOM.setupPinInput.value = '';
+    if (DOM.setupPinConfirmInput) DOM.setupPinConfirmInput.value = '';
+    openModal(DOM.firstRunPinModal);
+    setTimeout(() => { if (DOM.setupPinInput) DOM.setupPinInput.focus(); }, 150);
+  }
+
+  async function checkAuthStatus() {
+    try {
+      const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
+      if (res.ok) {
+        const auth = await res.json();
+        if (auth.pin_initialized === false) {
+          openFirstRunPinModal();
+        } else if (auth.is_authenticated) {
+          state.isAuthenticated = true;
+          updateAuthUI();
+        }
+      }
+    } catch (e) {
+      console.warn('Auth status check error:', e);
+    }
+  }
+
   function initAuthHandlers() {
     if (DOM.sidebarPinBtn) {
       DOM.sidebarPinBtn.addEventListener('click', () => {
@@ -2604,6 +2684,45 @@
 
     if (DOM.securityLogoutBtn) {
       DOM.securityLogoutBtn.addEventListener('click', logoutSession);
+    }
+
+    if (DOM.firstRunPinForm) {
+      DOM.firstRunPinForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const pin = DOM.setupPinInput ? DOM.setupPinInput.value.trim() : '';
+        const confirmPin = DOM.setupPinConfirmInput ? DOM.setupPinConfirmInput.value.trim() : '';
+        if (!pin || pin.length < 4) {
+          if (DOM.firstRunPinError) DOM.firstRunPinError.textContent = 'PIN must be at least 4 characters long.';
+          return;
+        }
+        if (pin !== confirmPin) {
+          if (DOM.firstRunPinError) DOM.firstRunPinError.textContent = 'PIN and Confirmation PIN do not match.';
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/auth/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin: pin, confirm_pin: confirmPin }),
+            credentials: 'same-origin'
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            state.isAuthenticated = true;
+            state.sessionToken = data.token || data.session_id || '';
+            state.csrfToken = data.csrf_token || '';
+            localStorage.setItem('pysurv_session_token', state.sessionToken);
+            updateAuthUI();
+            closeModal(DOM.firstRunPinModal);
+            showToast('Master PIN initialized. Console unlocked.', 'success');
+          } else {
+            if (DOM.firstRunPinError) DOM.firstRunPinError.textContent = data.message || 'Initialization failed.';
+          }
+        } catch (err) {
+          if (DOM.firstRunPinError) DOM.firstRunPinError.textContent = 'Network or server error during PIN setup.';
+        }
+      });
     }
 
     if (DOM.pinForm) {
@@ -2911,6 +3030,7 @@
       state.isAuthenticated = true;
     }
     updateAuthUI();
+    checkAuthStatus();
   }
 
   if (document.readyState === 'loading') {

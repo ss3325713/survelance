@@ -140,7 +140,7 @@ def test_security_subsystem():
 
     # F. Local network IP validator
     assert is_local_network_ip("127.0.0.1")
-    assert is_local_network_ip("192.168.31.211")
+    assert is_local_network_ip("192.168.1.50")
     assert is_local_network_ip("10.0.0.5")
     assert is_local_network_ip("testclient")
     assert not is_local_network_ip("8.8.8.8")

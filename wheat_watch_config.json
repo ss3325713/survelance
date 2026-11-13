@@ -1,7 +1,14 @@
 {
   "camera": {
-    "phone_ip": "192.168.31.211",
+    "source_name": "IP Camera",
+    "device_profile": "auto",
+    "camera_host": "127.0.0.1",
+    "camera_port": 8080,
+    "phone_ip": "127.0.0.1",
     "phone_port": 8080,
+    "video_url": "",
+    "snapshot_url": "",
+    "audio_url": "",
     "video_endpoint": "/video",
     "snapshot_endpoint": "/shot.jpg",
     "audio_endpoint": "/audio.wav",
@@ -17,10 +24,12 @@
     "host": "0.0.0.0",
     "port": 8000,
     "dashboard_pin": "****",
+    "dashboard_pin_hash": "7f75353ea4783e6eb52a0b53f49af9b0c9d4e52f994b1aee10e7c614897c9a57",
+    "dashboard_pin_salt": "701d7938413ec854803cb84291a4874e",
     "pin_required": true,
-    "restrict_local_network": true,
-    "dashboard_pin_hash": "910fbb07b16fae1d2ddbd4fefe2ec784e4a97d590d815a8e6b44f6e0b99a18d7",
-    "dashboard_pin_salt": "740c90c711f4da446396bbcb79cd7b73"
+    "pin_initialized": true,
+    "session_secret": "d9cf8c1fe9c4aed7a04c564aebf364c8a52fc1aa9afd036def9297e172679649",
+    "restrict_local_network": true
   },
   "pipeline": {
     "target_width": 640,
@@ -39,14 +48,14 @@
   },
   "image_controls": {
     "resolution": "640x480",
-    "quality": 54,
+    "quality": 95,
     "exposure_compensation": -2,
     "gamma": 1.55,
-    "brightness": -15,
-    "contrast": 1.15,
+    "brightness": -29,
+    "contrast": 1.3,
     "auto_hdr": false,
     "white_balance": "auto",
-    "torch": true,
+    "torch": false,
     "night_vision": false
   },
   "alarm": {
@@ -125,7 +134,7 @@
     "max_storage_mb": 2048
   },
   "flashlight": {
-    "mode": "off",
+    "mode": "auto",
     "lux_threshold": 45.0,
     "min_on_time_sec": 10.0,
     "max_on_time_sec": 120.0,

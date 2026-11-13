@@ -13,7 +13,7 @@ from pathlib import Path
 import websockets
 
 BASE_URL = "http://127.0.0.1:8000"
-ARTIFACTS_DIR = Path("/home/sumit/.gemini/antigravity/brain/8a0b6f3d-cb7e-45dc-a29b-a123ab125a21")
+ARTIFACTS_DIR = Path(os.environ.get("PYSURVEILLANCE_ARTIFACTS_DIR", "/tmp/pysurveillance_artifacts"))
 
 class CDPSession:
     def __init__(self, ws):

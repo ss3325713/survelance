@@ -1,9 +1,16 @@
 .venv/
 __pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
+
+# Storage and incident database
+storage/events.db
+storage/*.db
+storage/**/*.db
+*.db-journal
 storage/events/**/*.jpg
 storage/events/*.jpg
 storage/backups/*.db
-storage/events.db-journal
 storage/temp_recordings/
 *.mp4

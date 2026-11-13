@@ -17,10 +17,17 @@ logger = logging.getLogger("wheat_watch.config")
 CONFIG_FILE_PATH = Path("wheat_watch_config.json")
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    # Camera Configuration (Redmi 10 IP Webcam)
+    # Camera Configuration (Supports generic IP cameras and smartphones via HTTP/MJPEG and RTSP)
     "camera": {
-        "phone_ip": "192.168.31.211",
-        "phone_port": 8080,
+        "source_name": "IP Camera",
+        "device_profile": "auto",  # "auto", "ip_webcam", "generic"
+        "camera_host": "127.0.0.1",
+        "camera_port": 8080,
+        "phone_ip": "127.0.0.1",  # Backward-compatibility alias
+        "phone_port": 8080,        # Backward-compatibility alias
+        "video_url": "",           # Full stream URL (e.g. http://<IP>:<PORT>/video or rtsp://<IP>/stream)
+        "snapshot_url": "",        # Full snapshot URL (e.g. http://<IP>:<PORT>/shot.jpg)
+        "audio_url": "",           # Full audio stream URL (e.g. http://<IP>:<PORT>/audio.wav)
         "video_endpoint": "/video",
         "snapshot_endpoint": "/shot.jpg",
         "audio_endpoint": "/audio.wav",
@@ -37,9 +44,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "host": "0.0.0.0",
         "port": 8000,
         "dashboard_pin": "****",
-        "dashboard_pin_hash": "332c18391f45bddd13dce01c2c3cc495f6b3909ed1bf5747d73a89417c9875e7",
-        "dashboard_pin_salt": "4df8d1525a685686ef4bac8de8b74d1b",
+        "dashboard_pin_hash": "",
+        "dashboard_pin_salt": "",
         "pin_required": True,
+        "pin_initialized": False,
         "session_secret": secrets.token_hex(32),
         "restrict_local_network": True,
     },
@@ -199,29 +207,55 @@ class Config:
                     data = json.load(f)
                 merged = cls._merge_defaults(DEFAULT_CONFIG, data)
                 server_cfg = merged.setdefault("server", {})
-                # Secure PIN migration: convert legacy plaintext PIN to salted PBKDF2 hash
-                raw_pin = server_cfg.get("dashboard_pin")
-                if "dashboard_pin_hash" not in server_cfg:
+                
+                # Check for existing valid salted hash
+                has_hash = bool(server_cfg.get("dashboard_pin_hash") and server_cfg.get("dashboard_pin_salt"))
+                
+                # Check for environment variable initial PIN override (for automated headless setups/testing)
+                env_pin = os.environ.get("PYSURVEILLANCE_INITIAL_PIN")
+                if not has_hash and env_pin and len(env_pin.strip()) >= 4:
                     from wheat_watch.security import hash_pin
-                    effective_pin = "1234" if (not raw_pin or raw_pin == "****") else str(raw_pin)
-                    h, s = hash_pin(effective_pin)
+                    h, s = hash_pin(env_pin.strip())
                     server_cfg["dashboard_pin_hash"] = h
                     server_cfg["dashboard_pin_salt"] = s
                     server_cfg["dashboard_pin"] = "****"
+                    server_cfg["pin_initialized"] = True
+                    has_hash = True
+                elif not has_hash:
+                    # Check if legacy plaintext PIN was specified
+                    raw_pin = server_cfg.get("dashboard_pin")
+                    if raw_pin and raw_pin != "****":
+                        from wheat_watch.security import hash_pin
+                        h, s = hash_pin(str(raw_pin))
+                        server_cfg["dashboard_pin_hash"] = h
+                        server_cfg["dashboard_pin_salt"] = s
+                        server_cfg["dashboard_pin"] = "****"
+                        server_cfg["pin_initialized"] = True
+                        has_hash = True
+                    else:
+                        server_cfg["pin_initialized"] = False
+                else:
+                    server_cfg["pin_initialized"] = True
+
                 instance = cls(merged)
                 instance.save()
                 return instance
             except Exception as e:
                 logger.error(f"Failed to load config, falling back to defaults: {e}")
-        # Save default config if not exists
+
+        # Fresh default config
         instance = cls(dict(DEFAULT_CONFIG))
         server_cfg = instance._data.setdefault("server", {})
-        if "dashboard_pin_hash" not in server_cfg:
+        env_pin = os.environ.get("PYSURVEILLANCE_INITIAL_PIN")
+        if env_pin and len(env_pin.strip()) >= 4:
             from wheat_watch.security import hash_pin
-            h, s = hash_pin("1234")
+            h, s = hash_pin(env_pin.strip())
             server_cfg["dashboard_pin_hash"] = h
             server_cfg["dashboard_pin_salt"] = s
             server_cfg["dashboard_pin"] = "****"
+            server_cfg["pin_initialized"] = True
+        else:
+            server_cfg["pin_initialized"] = False
         instance.save()
         return instance
 
@@ -252,15 +286,12 @@ class Config:
                 updates["server"]["dashboard_pin_hash"] = h
                 updates["server"]["dashboard_pin_salt"] = s
                 updates["server"]["dashboard_pin"] = "****"
+                updates["server"]["pin_initialized"] = True
             else:
                 if "dashboard_pin_hash" in self._data.get("server", {}):
                     updates["server"].setdefault("dashboard_pin_hash", self._data["server"]["dashboard_pin_hash"])
                     updates["server"].setdefault("dashboard_pin_salt", self._data["server"]["dashboard_pin_salt"])
-                else:
-                    from wheat_watch.security import hash_pin
-                    h, s = hash_pin("1234")
-                    updates["server"]["dashboard_pin_hash"] = h
-                    updates["server"]["dashboard_pin_salt"] = s
+                    updates["server"]["pin_initialized"] = bool(self._data["server"]["dashboard_pin_hash"])
                 updates["server"]["dashboard_pin"] = "****"
         self._data = self._merge_defaults(self._data, updates)
         self.save()
@@ -318,28 +349,46 @@ class Config:
         return self._data.setdefault("video_recording", dict(DEFAULT_CONFIG["video_recording"]))
 
     @property
+    def is_pin_initialized(self) -> bool:
+        """Check if a salted PBKDF2 hash is set for the master PIN."""
+        server_cfg = self.server
+        return bool(server_cfg.get("dashboard_pin_hash") and server_cfg.get("dashboard_pin_salt"))
+
+    @property
     def camera_video_url(self) -> str:
         cam = self.camera
-        ep = cam["video_endpoint"]
+        if cam.get("video_url") and str(cam["video_url"]).strip():
+            return str(cam["video_url"]).strip()
+        host = cam.get("camera_host") or cam.get("phone_ip", "127.0.0.1")
+        port = cam.get("camera_port") or cam.get("phone_port", 8080)
+        ep = cam.get("video_endpoint", "/video")
         if not ep.startswith("/"):
             ep = "/" + ep
-        return f"http://{cam['phone_ip']}:{cam['phone_port']}{ep}"
+        return f"http://{host}:{port}{ep}"
 
     @property
     def camera_snapshot_url(self) -> str:
         cam = self.camera
-        ep = cam["snapshot_endpoint"]
+        if cam.get("snapshot_url") and str(cam["snapshot_url"]).strip():
+            return str(cam["snapshot_url"]).strip()
+        host = cam.get("camera_host") or cam.get("phone_ip", "127.0.0.1")
+        port = cam.get("camera_port") or cam.get("phone_port", 8080)
+        ep = cam.get("snapshot_endpoint", "/shot.jpg")
         if not ep.startswith("/"):
             ep = "/" + ep
-        return f"http://{cam['phone_ip']}:{cam['phone_port']}{ep}"
+        return f"http://{host}:{port}{ep}"
 
     @property
     def camera_audio_url(self) -> str:
         cam = self.camera
+        if cam.get("audio_url") and str(cam["audio_url"]).strip():
+            return str(cam["audio_url"]).strip()
+        host = cam.get("camera_host") or cam.get("phone_ip", "127.0.0.1")
+        port = cam.get("camera_port") or cam.get("phone_port", 8080)
         ep = cam.get("audio_endpoint", "/audio.wav")
         if not ep.startswith("/"):
             ep = "/" + ep
-        return f"http://{cam['phone_ip']}:{cam['phone_port']}{ep}"
+        return f"http://{host}:{port}{ep}"
 
     def to_dict(self) -> Dict[str, Any]:
         return dict(self._data)

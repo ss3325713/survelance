@@ -147,48 +147,53 @@ class CameraWorker:
         return adjusted
 
     def get_camera_hw_curvals(self, timeout: float = 1.5) -> Optional[Dict[str, Any]]:
-        """Fetch active hardware settings directly from Redmi 10 IP Webcam."""
+        """Fetch active hardware settings directly from IP Webcam (if supported by camera)."""
         cam = app_config.camera
-        ip = cam.get("phone_ip", "192.168.31.211")
-        port = cam.get("phone_port", 8080)
+        if cam.get("device_profile") == "generic":
+            return None
+        ip = cam.get("camera_host") or cam.get("phone_ip", "127.0.0.1")
+        port = cam.get("camera_port") or cam.get("phone_port", 8080)
         try:
             r = httpx.get(f"http://{ip}:{port}/status.json", timeout=timeout)
             if r.status_code == 200:
                 return r.json().get("curvals", {})
         except Exception as e:
-            logger.debug(f"Failed to query camera status.json: {e}")
+            logger.debug(f"Hardware status.json query skipped: {e}")
         return None
 
     def get_phone_device_telemetry(self, max_cache_age: float = 3.0) -> Dict[str, Any]:
-        """Fetch real-time phone diagnostics including battery, temperature, optics and sensor status."""
+        """Fetch real-time device diagnostics including battery, temperature, optics and sensor status."""
         now = time.time()
         if self._phone_telemetry_cache and (now - self._phone_telemetry_time < max_cache_age):
             return self._phone_telemetry_cache
 
         cam = app_config.camera
-        ip = cam.get("phone_ip", "192.168.31.211")
-        port = cam.get("phone_port", 8080)
+        ip = cam.get("camera_host") or cam.get("phone_ip", "127.0.0.1")
+        port = cam.get("camera_port") or cam.get("phone_port", 8080)
+        device_profile = cam.get("device_profile", "auto")
 
         curvals: Dict[str, Any] = {}
         video_connections = 0
         audio_connections = 0
-        try:
-            r = httpx.get(f"http://{ip}:{port}/status.json", timeout=1.8)
-            if r.status_code == 200:
-                data = r.json()
-                curvals = data.get("curvals", {})
-                video_connections = data.get("video_connections", 0)
-                audio_connections = data.get("audio_connections", 0)
-        except Exception:
-            pass
+        if device_profile != "generic":
+            try:
+                r = httpx.get(f"http://{ip}:{port}/status.json", timeout=1.8)
+                if r.status_code == 200:
+                    data = r.json()
+                    curvals = data.get("curvals", {})
+                    video_connections = data.get("video_connections", 0)
+                    audio_connections = data.get("audio_connections", 0)
+            except Exception:
+                pass
 
         sensors: Dict[str, Any] = {}
-        try:
-            r_sen = httpx.get(f"http://{ip}:{port}/sensors.json", timeout=1.8)
-            if r_sen.status_code == 200:
-                sensors = r_sen.json()
-        except Exception:
-            pass
+        if device_profile != "generic":
+            try:
+                r_sen = httpx.get(f"http://{ip}:{port}/sensors.json", timeout=1.8)
+                if r_sen.status_code == 200:
+                    sensors = r_sen.json()
+            except Exception:
+                pass
 
         def extract_latest(sensor_obj: Any) -> Optional[float]:
             if isinstance(sensor_obj, dict) and "data" in sensor_obj and sensor_obj["data"]:
@@ -207,9 +212,25 @@ class CameraWorker:
         ambient_lux = extract_latest(sensors.get("light"))
 
         sensors_enabled = bool(sensors and len(sensors) > 0)
+        is_ip_webcam = bool(curvals or sensors)
+
+        if device_profile == "generic":
+            is_ip_webcam = False
+            sensors_enabled = False
+            custom_name = cam.get("source_name")
+            if custom_name and custom_name not in ("Network Camera", "IP Camera"):
+                model_name = custom_name
+            else:
+                model_name = "Generic IP Camera"
+        elif is_ip_webcam:
+            model_name = "Android IP Webcam"
+        else:
+            model_name = cam.get("source_name", "IP Camera")
 
         res = {
-            "model": "Redmi 10 (IP Webcam)",
+            "model": model_name,
+            "device_type": "ip_webcam" if is_ip_webcam else "generic_camera",
+            "has_sensors": bool(is_ip_webcam and sensors_enabled),
             "phone_ip": ip,
             "phone_port": port,
             "is_online": self.state == self.STATE_ONLINE,
@@ -218,10 +239,12 @@ class CameraWorker:
             "battery_level": round(battery_level, 1) if battery_level is not None else None,
             "battery_temp": round(battery_temp, 1) if battery_temp is not None else None,
             "battery_voltage": round(battery_voltage, 2) if battery_voltage is not None else None,
+            "battery_status": "Battery (Smartphone)" if (is_ip_webcam and battery_level is not None) else "External Power (AC / PoE)",
             "ambient_temp": round(ambient_temp, 1) if ambient_temp is not None else None,
             "ambient_lux": round(ambient_lux, 1) if ambient_lux is not None else None,
             "sensors_logging_enabled": sensors_enabled,
-            "sensor_help_hint": "Live sensors active." if sensors_enabled else "In IP Webcam on Redmi 10: Scroll down to Data logging ➔ enable 'Log sensors' to stream live battery % & temperature.",
+            "has_hardware_torch": bool(is_ip_webcam and "torch" in curvals),
+            "sensor_help_hint": "Live sensors active." if sensors_enabled else ("In IP Webcam: Scroll to Data logging ➔ enable 'Log sensors' to stream battery % and temperature." if is_ip_webcam else "Generic IP Camera: Hardware sensors and smartphone battery are not present on standard network cameras."),
             "torch": curvals.get("torch", "off"),
             "flashmode": curvals.get("flashmode", "off"),
             "night_vision": curvals.get("night_vision", "off"),
@@ -237,11 +260,26 @@ class CameraWorker:
         self._phone_telemetry_time = now
         return res
 
-    def send_camera_command(self, cmd: str, val: Any) -> bool:
-        """Send hardware control commands directly to Redmi 10 IP Webcam."""
+    @property
+    def has_flashlight(self) -> bool:
+        """Check whether the active camera device supports an LED torch."""
         cam = app_config.camera
-        ip = cam.get("phone_ip", "192.168.31.211")
-        port = cam.get("phone_port", 8080)
+        if cam.get("device_profile") == "generic":
+            return False
+        telemetry = self._phone_telemetry_cache
+        if telemetry and telemetry.get("has_hardware_torch"):
+            return True
+        return False
+
+    def send_camera_command(self, cmd: str, val: Any) -> bool:
+        """Send hardware control commands directly to IP Webcam or supported camera."""
+        cam = app_config.camera
+        if cam.get("device_profile") == "generic":
+            logger.debug(f"Hardware command '{cmd}' ignored: generic camera profile active.")
+            return False
+
+        ip = cam.get("camera_host") or cam.get("phone_ip", "127.0.0.1")
+        port = cam.get("camera_port") or cam.get("phone_port", 8080)
         try:
             if cmd == "torch":
                 ep = "/enabletorch" if val else "/disabletorch"
@@ -259,7 +297,7 @@ class CameraWorker:
                 httpx.get(f"http://{ip}:{port}/settings/video_size?set={val}", timeout=3.0)
             return True
         except Exception as e:
-            logger.error(f"Failed to send camera command {cmd}={val}: {e}")
+            logger.debug(f"Camera command {cmd}={val} not handled: {e}")
             return False
 
     def _verify_stream_frames(
@@ -310,8 +348,8 @@ class CameraWorker:
             self.update_image_controls(updates)
 
             cam = app_config.camera
-            ip = cam.get("phone_ip", "192.168.31.211")
-            port = cam.get("phone_port", 8080)
+            ip = cam.get("camera_host") or cam.get("phone_ip", "127.0.0.1")
+            port = cam.get("camera_port") or cam.get("phone_port", 8080)
 
             # Query phone's current hardware state to avoid redundant command spam
             hw_curvals = self.get_camera_hw_curvals(timeout=2.0) or {}
@@ -474,8 +512,8 @@ class CameraWorker:
         self._paused_event.wait(timeout=2.0)
 
         cam = app_config.camera
-        ip = cam.get("phone_ip", "192.168.31.211")
-        port = cam.get("phone_port", 8080)
+        ip = cam.get("camera_host") or cam.get("phone_ip", "127.0.0.1")
+        port = cam.get("camera_port") or cam.get("phone_port", 8080)
 
         try:
             httpx.get(f"http://{ip}:{port}/settings/video_size?set={fallback_res}", timeout=4.0)
@@ -838,33 +876,81 @@ class CameraWorker:
 
     @staticmethod
     def test_connection(
-        phone_ip: str,
-        phone_port: int,
+        phone_ip: Optional[str] = None,
+        phone_port: Optional[int] = None,
+        camera_host: Optional[str] = None,
+        camera_port: Optional[int] = None,
+        video_url: Optional[str] = None,
         video_endpoint: str = "/video",
         snapshot_endpoint: str = "/shot.jpg",
         timeout: float = 3.0,
     ) -> Dict[str, Any]:
         """Test reachability and camera response for configuration dialog."""
+        # 1. Direct stream URL test (e.g. RTSP or custom HTTP stream)
+        if video_url and str(video_url).strip():
+            url = str(video_url).strip()
+            t0 = time.time()
+            try:
+                cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                if not cap.isOpened():
+                    return {
+                        "success": False,
+                        "stage": "stream_open",
+                        "error": f"Cannot open video stream at {url}",
+                        "message": "Stream could not be opened. Check IP, port, credentials and protocol.",
+                    }
+                ret, frame = cap.read()
+                cap.release()
+                if not ret or frame is None or frame.size == 0:
+                    return {
+                        "success": False,
+                        "stage": "stream_decode",
+                        "error": "Stream opened but failed to decode video frames.",
+                        "message": "Stream connected but no frames could be decoded.",
+                    }
+                h, w = frame.shape[:2]
+                latency_ms = (time.time() - t0) * 1000.0
+                return {
+                    "success": True,
+                    "http_latency_ms": round(latency_ms, 1),
+                    "resolution": f"{w}x{h}",
+                    "server": "Compatible Video Stream",
+                    "bytes_received": frame.nbytes,
+                    "message": f"Connection verified! Stream active at {w}x{h} ({latency_ms:.1f}ms latency).",
+                }
+            except Exception as e:
+                return {
+                    "success": False,
+                    "stage": "stream_test",
+                    "error": str(e),
+                    "message": f"Video stream test failed: {e}",
+                }
+
+        # 2. Host and Port TCP + Snapshot check
+        host = camera_host or phone_ip or "127.0.0.1"
+        port = int(camera_port or phone_port or 8080)
+
         # Step 1: TCP Port check
         t0 = time.time()
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(timeout)
         try:
-            s.connect((phone_ip, phone_port))
+            s.connect((host, port))
             s.close()
         except Exception as e:
             return {
                 "success": False,
                 "stage": "tcp_connect",
-                "error": f"Cannot connect to {phone_ip}:{phone_port} - {e}",
-                "message": "TCP port is unreachable. Ensure phone is on the same Wi-Fi and IP Webcam server is started.",
+                "error": f"Cannot connect to {host}:{port} - {e}",
+                "message": f"TCP port is unreachable on {host}:{port}. Ensure camera is on and reachable over network.",
             }
 
         tcp_latency_ms = (time.time() - t0) * 1000.0
 
         # Step 2: HTTP Snapshot test
         snap_ep = snapshot_endpoint if snapshot_endpoint.startswith("/") else f"/{snapshot_endpoint}"
-        snap_url = f"http://{phone_ip}:{phone_port}{snap_ep}"
+        snap_url = f"http://{host}:{port}{snap_ep}"
 
         try:
             t1 = time.time()
@@ -877,7 +963,7 @@ class CameraWorker:
                     "stage": "snapshot_http",
                     "status_code": resp.status_code,
                     "error": f"HTTP {resp.status_code} returned from {snap_url}",
-                    "message": "Phone responded but snapshot endpoint failed.",
+                    "message": "Camera host responded but snapshot endpoint failed.",
                 }
 
             # Verify image decode
@@ -891,7 +977,7 @@ class CameraWorker:
                 }
 
             h, w = img.shape[:2]
-            server_header = resp.headers.get("server", "IP Webcam")
+            server_header = resp.headers.get("server", "IP Camera")
 
             return {
                 "success": True,
@@ -908,7 +994,7 @@ class CameraWorker:
                 "success": False,
                 "stage": "http_request",
                 "error": str(e),
-                "message": f"HTTP test failed: {e}",
+                "message": f"HTTP snapshot request failed: {e}",
             }
 
 

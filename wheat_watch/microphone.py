@@ -138,8 +138,18 @@ class MicrophoneDetector:
             else:
                 state_label = "SILENT"
 
+            if app_config.camera.get("audio_source_name"):
+                source_name = app_config.camera.get("audio_source_name")
+            elif app_config.camera.get("device_profile") == "generic":
+                custom_name = app_config.camera.get("source_name")
+                if custom_name and custom_name not in ("Network Camera", "IP Camera"):
+                    source_name = custom_name
+                else:
+                    source_name = "Generic Audio Stream"
+            else:
+                source_name = "Redmi 10 (IP Webcam Audio Stream)"
             return {
-                "source": "Redmi 10 (IP Webcam Audio Stream)",
+                "source": source_name,
                 "stream_url": stream_url,
                 "enabled": bool(app_config.audio_detection.get("enabled", True)),
                 "is_connected": self.is_connected,

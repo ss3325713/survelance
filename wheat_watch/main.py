@@ -11,6 +11,7 @@ import io
 import json
 import logging
 import os
+import platform
 import secrets
 import time
 from datetime import datetime
@@ -145,11 +146,19 @@ class PINVerifyRequest(BaseModel):
     pin: str
 
 
+class PINSetupRequest(BaseModel):
+    pin: str
+    confirm_pin: str
+
+
 class CameraTestRequest(BaseModel):
-    phone_ip: str
-    phone_port: int
+    phone_ip: Optional[str] = None
+    phone_port: Optional[int] = None
+    camera_host: Optional[str] = None
+    camera_port: Optional[int] = None
     video_endpoint: str = "/video"
     snapshot_endpoint: str = "/shot.jpg"
+    video_url: Optional[str] = None
 
 
 class ImageControlsRequest(BaseModel):
@@ -267,6 +276,11 @@ async def get_system_status():
     mon_status = pipeline.get_status()
     return {
         "status": "online",
+        "host_system": {
+            "hostname": platform.node() or "Linux Host",
+            "system": platform.system(),
+            "release": platform.release(),
+        },
         "monitoring": mon_status,
         "live_detection": mon_status.get("live_detection", {}),
         "video_recording": mon_status.get("video_recording", {}),
@@ -309,6 +323,78 @@ async def get_qr_code():
     return Response(content=svg, media_type="image/svg+xml")
 
 
+@app.get("/api/auth/status")
+async def get_auth_status(request: Request):
+    """Check authentication status, PIN initialization status, and active lockout state."""
+    client_ip = request.client.host if request.client else ""
+    is_locked, remaining_sec = rate_limiter.is_locked_out(client_ip)
+    token = (
+        request.headers.get("X-Dashboard-Token")
+        or request.headers.get("X-Session-Token")
+        or request.cookies.get("wheat_watch_session")
+    )
+    is_authenticated = False
+    if token:
+        session = session_manager.validate_session(token, client_ip)
+        if session:
+            is_authenticated = True
+
+    return {
+        "pin_required": app_config.server.get("pin_required", True),
+        "pin_initialized": app_config.is_pin_initialized,
+        "is_authenticated": is_authenticated,
+        "is_locked": is_locked,
+        "lockout_remaining_seconds": remaining_sec if is_locked else 0,
+    }
+
+
+@app.post("/api/auth/setup")
+async def setup_initial_pin(req: PINSetupRequest, request: Request, response: Response):
+    """First-run initialization of master PIN. Only permitted if no PIN has been initialized."""
+    client_ip = request.client.host if request.client else ""
+    if app_config.is_pin_initialized:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": "Master PIN has already been initialized."},
+        )
+    if len(req.pin) < 4:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"success": False, "message": "PIN must be at least 4 characters long."},
+        )
+    if req.pin != req.confirm_pin:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"success": False, "message": "PIN and Confirmation PIN do not match."},
+        )
+
+    h, s = hash_pin(req.pin)
+    app_config.server["dashboard_pin_hash"] = h
+    app_config.server["dashboard_pin_salt"] = s
+    app_config.server["dashboard_pin"] = "****"
+    app_config.save()
+
+    rate_limiter.record_success(client_ip)
+    token, csrf_token = session_manager.create_session(client_ip)
+    is_https = request.url.scheme == "https"
+    response.set_cookie(
+        key="wheat_watch_session",
+        value=token,
+        max_age=86400,
+        httponly=True,
+        samesite="lax",
+        secure=is_https,
+    )
+    security_logger.info(f"[SECURITY AUDIT] Master PIN successfully initialized from {client_ip}.")
+    return {
+        "success": True,
+        "token": token,
+        "session_id": token,
+        "csrf_token": csrf_token,
+        "message": "Master PIN created successfully. Session established.",
+    }
+
+
 @app.post("/api/auth/verify")
 async def verify_pin(req: PINVerifyRequest, request: Request, response: Response):
     """Verify dashboard PIN with rate limiting, brute-force lockout, and salted PBKDF2 hashing."""
@@ -337,9 +423,9 @@ async def verify_pin(req: PINVerifyRequest, request: Request, response: Response
         valid = verify_pin_hash(req.pin, stored_hash, stored_salt)
 
     if not valid:
-        # Fallback/migration if unhashed or standard initial recovery PIN
+        # Backward-compatible migration if an unhashed custom raw PIN was stored previously
         raw_pin = server_cfg.get("dashboard_pin")
-        if req.pin == "1234" or (raw_pin and raw_pin != "****" and req.pin == raw_pin):
+        if raw_pin and raw_pin != "****" and req.pin == raw_pin:
             valid = True
             h, s = hash_pin(req.pin)
             server_cfg["dashboard_pin_hash"] = h
@@ -409,12 +495,15 @@ async def stop_monitoring(auth: bool = Depends(verify_pin_auth)):
 
 @app.post("/api/camera/test")
 async def test_camera(req: CameraTestRequest, auth: bool = Depends(verify_pin_auth)):
-    """Perform on-demand connection test to phone camera."""
+    """Perform on-demand connection test to camera or stream."""
+    target_host = req.camera_host or req.phone_ip or app_config.camera_host
+    target_port = req.camera_port or req.phone_port or app_config.camera_port
     result = CameraWorker.test_connection(
-        phone_ip=req.phone_ip,
-        phone_port=req.phone_port,
+        phone_ip=target_host,
+        phone_port=target_port,
         video_endpoint=req.video_endpoint,
         snapshot_endpoint=req.snapshot_endpoint,
+        video_url=req.video_url,
     )
     return result
 

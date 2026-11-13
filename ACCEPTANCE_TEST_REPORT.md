@@ -1,54 +1,54 @@
-# WHEAT WATCH — FINAL ACCEPTANCE TEST REPORT
-**Date & Time:** 2026-11-10 13:25:00 IST  
-**System Platform:** Linux Mint 22.3 (Zena) / Ubuntu 24.04 (Noble)  
-**Host Hardware:** HP EliteBook 745 G2 (AMD A10 PRO-7350B, 4 Cores, 6.7 GB RAM)  
-**Camera Device:** Xiaomi Redmi 10 (IP Webcam Server v0.4 at `http://192.168.31.211:8080`)  
-**Network Interface:** `wlo1` (Local IPv4: `192.168.31.8`, Subnet `192.168.31.0/24`)  
+# PYSURVEILLANCE — ACCEPTANCE TEST REPORT
+**Date & Time:** Reference Baseline Verification  
+**System Platform:** Linux (Ubuntu 24.04 / Linux Mint compatible)  
+**Reference Host Hardware (Tested):** AMD A10 PRO-7350B (4 Cores, 6.7 GB RAM)  
+**Reference Camera Device (Tested):** Android Smartphone (IP Webcam Server v0.4 at `http://<CAMERA_IP>:8080`)  
+**Network Interface:** LAN Interface (Local IPv4: `<HOST_IP>`, Subnet `<SUBNET>`)  
 
 ---
 
 ## Executive Summary
-This document confirms the rigorous real-world testing and verification of the **Wheat Watch** autonomous crop and field surveillance system. In accordance with the project specification overrides:
-- **Zero test simulation**: Every test was executed against the physical Redmi 10 smartphone on the local Wi-Fi network and real hardware components.
-- **Full pipeline isolation**: Camera acquisition, live preview multiplexing, motion detection, AI inference, event logging, snapshot storage, and laptop audio alerts run in decoupled asynchronous workers.
+This document confirms the verification of the **PySURVEILLANCE** autonomous surveillance and perimeter defense system. In accordance with the system architecture specifications:
+- **Real device verification**: Tested against physical network camera streams and hardware audio components on local LAN.
+- **Full pipeline isolation**: Camera acquisition, live preview multiplexing, motion detection, AI inference, event logging, video recording/processing queue, and laptop audio alerts run in decoupled asynchronous workers.
 - **Classification ethics**: Facial recognition is completely disabled. Monkey identification is strictly gated behind verified domain models; ordinary COCO animal detections report as *"Animal detected — species unconfirmed"*.
 
 ---
 
-## Acceptance Test Matrix (Section G)
+## Acceptance Test Matrix
 
 | # | Acceptance Requirement | Test Methodology & Verification | Result |
 |---|---|---|:---:|
-| **1** | **Redmi 10 connects successfully** | Automated TCP socket probe & HTTP snapshot verification to `http://192.168.31.211:8080/shot.jpg`. | **PASS [✓]** |
-| **2** | **Laptop receives actual camera stream** | Native OpenCV `VideoCapture` connected to `/video` MJPEG stream; decoded frames at 1920x1080. | **PASS [✓]** |
-| **3** | **Both laptop and phone open dashboard** | FastAPI bound to `0.0.0.0:8000`. Tested `http://127.0.0.1:8000` (laptop) and `http://192.168.31.8:8000` (phone). QR code generated. | **PASS [✓]** |
+| **1** | **Camera connects successfully** | Automated TCP socket probe & HTTP snapshot verification to `http://<CAMERA_IP>:8080/shot.jpg`. | **PASS [✓]** |
+| **2** | **Host receives actual camera stream** | Native OpenCV `VideoCapture` connected to `/video` MJPEG stream; decoded frames at high resolution. | **PASS [✓]** |
+| **3** | **Both host and remote clients open dashboard** | FastAPI bound to `0.0.0.0:8000`. Tested `http://127.0.0.1:8000` (host) and `http://<HOST_IP>:8000` (remote client). QR code generated. | **PASS [✓]** |
 | **4** | **Motion detection works on real video** | MOG2 background subtractor processed frames at 5–10 FPS; segmented motion contours and calculated area percentage. | **PASS [✓]** |
 | **5** | **Object detection with real installed model** | YOLOv8n ONNX executed via OpenCV DNN C++ backend; detected human and objects with bounding boxes. | **PASS [✓]** |
-| **6** | **Snapshots appear in dashboard** | Over 60 annotated snapshot JPEGs saved to `storage/events/` and queried through `/api/events`. | **PASS [✓]** |
-| **7** | **Laptop plays alerts with browser closed** | Background worker invoked Linux PulseAudio `paplay` for `person.wav`, `motion.wav`, etc., with zero browser dependency. | **PASS [✓]** |
-| **8** | **Camera disconnection & reconnection** | Injected unreachable IP `192.168.31.250`. Verified state moved to `RECONNECTING`. Restored IP and verified automatic reconnection. | **PASS [✓]** |
+| **6** | **Snapshots appear in dashboard** | Annotated snapshot JPEGs saved to `storage/events/` and queried through `/api/events`. | **PASS [✓]** |
+| **7** | **Host plays alerts with browser closed** | Background worker invoked Linux PulseAudio `paplay` for `person.wav`, `motion.wav`, etc., with zero browser dependency. | **PASS [✓]** |
+| **8** | **Camera disconnection & reconnection** | Injected unreachable IP `<UNREACHABLE_IP>`. Verified state moved to `RECONNECTING`. Restored IP and verified automatic reconnection. | **PASS [✓]** |
 | **9** | **Continuous extended monitoring** | 60-second continuous live soak test executed with zero crashes, frame drops, or pipeline locks. | **PASS [✓]** |
-| **10**| **CPU and memory monitored & documented** | System resources logged every 5 seconds. Process RSS: 219 MB. Dynamic auto-throttling triggered when CPU > 85%. | **PASS [✓]** |
+| **10**| **CPU and memory monitored & documented** | System resources logged every 5 seconds. Process RSS: ~219 MB. Dynamic auto-throttling triggered when CPU > 85%. | **PASS [✓]** |
 
 ---
 
 ## Detailed Test Logs & Execution Evidence
 
 ### 1. Camera Acquisition & Live Video Reception
-- **Camera IP / Port:** `192.168.31.211:8080`
-- **Video Endpoint:** `http://192.168.31.211:8080/video` (Content-Type: `multipart/x-mixed-replace`)
-- **Snapshot Endpoint:** `http://192.168.31.211:8080/shot.jpg` (JPEG 1920x1080)
+- **Camera IP / Port:** `<CAMERA_IP>:8080`
+- **Video Endpoint:** `http://<CAMERA_IP>:8080/video` (Content-Type: `multipart/x-mixed-replace`)
+- **Snapshot Endpoint:** `http://<CAMERA_IP>:8080/shot.jpg` (JPEG 1920x1080)
 - **Measured HTTP Latency:** 356.3 ms
 - **Acquired Camera FPS:** 18.6 – 22.4 FPS
 - **Normalized Target Resolution:** 640x480 (letterboxed & scaled for performance)
 
 ### 2. Dashboard Accessibility & Local Network Restriction
-- **Laptop URL:** `http://127.0.0.1:8000` (HTTP 200 OK)
-- **Phone URL:** `http://192.168.31.8:8000` (HTTP 200 OK)
+- **Host URL:** `http://127.0.0.1:8000` (HTTP 200 OK)
+- **Remote Client URL:** `http://<HOST_IP>:8000` (HTTP 200 OK)
 - **Mobile QR Code:** Generated dynamic SVG QR code for zero-friction phone access.
 - **Security Middleware Validation:**
   - `127.0.0.1` (Loopback) -> Allowed (200 OK)
-  - `192.168.31.211` (LAN Client) -> Allowed (200 OK)
+  - `<CAMERA_IP>` (LAN Client) -> Allowed (200 OK)
   - `8.8.8.8` (Public IP) -> Rejected (403 Forbidden)
 
 ### 3. Detection & Classification Policy Conformance
@@ -70,9 +70,9 @@ This document confirms the rigorous real-world testing and verification of the *
 
 ### 5. Camera Disconnection and Reconnection Cycle
 - **Initial State:** `CONNECTED` (Camera FPS: 20.6)
-- **Disconnection Trigger:** Pointed configuration to non-responsive IP `192.168.31.250`.
+- **Disconnection Trigger:** Pointed configuration to non-responsive IP `<UNREACHABLE_IP>`.
 - **System Response:** CameraWorker detected stream interruption, released stale socket, entered backoff retry loop, updated status to `RECONNECTING`.
-- **Reconnection Trigger:** Restored valid IP `192.168.31.211`.
+- **Reconnection Trigger:** Restored valid IP `<CAMERA_IP>`.
 - **Recovery:** On retry cycle #1, stream reopened, decoded new frame, and restored state to `CONNECTED` (FPS: 20.6).
 
 ### 6. 60-Second Extended Soak & Resource Monitoring

@@ -1,14 +1,14 @@
 [Unit]
-Description=Wheat Watch Crop & Field Surveillance Service
+Description=PySURVEILLANCE Field & Facility Surveillance Service
 After=network.target sound.target default.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/sumit/Desktop/survelance
-ExecStart=/home/sumit/Desktop/survelance/.venv/bin/python /home/sumit/Desktop/survelance/run.py
+WorkingDirectory=%h/pysurveillance
+ExecStart=%h/pysurveillance/.venv/bin/python run.py
 Restart=always
 RestartSec=3
-TimeoutStopSec=3
+TimeoutStopSec=5
 KillMode=mixed
 Environment=PYTHONUNBUFFERED=1
 

@@ -14,12 +14,14 @@ def main():
     initial_cam = r.json().get("camera", {})
     print(f"[1] Initial State: {initial_cam.get('state')} (reconnect_attempts={initial_cam.get('reconnect_attempts')})")
 
+    orig_ip = initial_cam.get("phone_ip") or "127.0.0.1"
+
     try:
         # 2. Simulate disconnection by pointing to non-existent IP
-        print("[2] Triggering disconnection: setting phone_ip to 192.168.31.250...")
+        print("[2] Triggering disconnection...")
         r = client.post(
             f"{BASE_URL}/api/config",
-            json={"camera": {"phone_ip": "192.168.31.250"}},
+            json={"camera": {"phone_ip": "192.0.2.1"}},
             headers={"X-Dashboard-PIN": "1234"}
         )
         assert r.status_code == 200, f"Config update failed: {r.text}"
@@ -35,10 +37,10 @@ def main():
 
     finally:
         # 3. Restore valid IP
-        print("[4] Restoring valid Redmi 10 IP: 192.168.31.211...")
+        print(f"[4] Restoring original camera IP: {orig_ip}...")
         r = client.post(
             f"{BASE_URL}/api/config",
-            json={"camera": {"phone_ip": "192.168.31.211"}},
+            json={"camera": {"phone_ip": orig_ip}},
             headers={"X-Dashboard-PIN": "1234"}
         )
         assert r.status_code == 200

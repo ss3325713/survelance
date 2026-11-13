@@ -165,11 +165,12 @@ def main():
     # -------------------------------------------------------------------------
     log_test("8. SIMULATE TEMPORARY NETWORK DISCONNECTION & AUTO-RECOVERY")
     # -------------------------------------------------------------------------
-    print("Simulating temporary network drop by setting unreachable IP 192.168.31.251...")
+    print("Simulating temporary network drop...")
+    orig_ip = cam.get("phone_ip") or "127.0.0.1"
     try:
         client.post(
             "/api/config",
-            json={"camera": {"phone_ip": "192.168.31.251"}},
+            json={"camera": {"phone_ip": "192.0.2.1"}},
             headers=PIN_HEADER,
         )
 
@@ -189,11 +190,11 @@ def main():
         print(f"PASS [✓] Reconnection state triggered cleanly with disconnect reason: '{cam_dc.get('disconnect_reason')}'")
 
     finally:
-        # Restore correct IP
-        print("Restoring valid Redmi 10 IP: 192.168.31.211...")
+        # Restore original IP
+        print(f"Restoring camera IP: {orig_ip}...")
         client.post(
             "/api/config",
-            json={"camera": {"phone_ip": "192.168.31.211"}},
+            json={"camera": {"phone_ip": orig_ip}},
             headers=PIN_HEADER,
         )
 

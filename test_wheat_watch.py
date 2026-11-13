@@ -35,19 +35,19 @@ def main():
         log_test("1. Server is live and bound to 0.0.0.0", False, str(e))
         return
 
-    # 2. Redmi 10 Camera Connection
+    # 2. Camera Connection
     try:
         r = client.post(f"{BASE_URL}/api/camera/test", json={
-            "phone_ip": "192.168.31.211",
+            "phone_ip": "127.0.0.1",
             "phone_port": 8080,
             "video_endpoint": "/video",
             "snapshot_endpoint": "/shot.jpg"
         })
         passed = (r.status_code == 200 and r.json().get("success") is True)
         res = r.json()
-        log_test("2. Redmi 10 Camera Connection & Snapshot Test", passed, f"Resolution: {res.get('resolution')}, HTTP Ping: {res.get('http_latency_ms')}ms, Msg: {res.get('message')}")
+        log_test("2. Camera Connection & Snapshot Test", passed, f"Resolution: {res.get('resolution')}, HTTP Ping: {res.get('http_latency_ms')}ms, Msg: {res.get('message')}")
     except Exception as e:
-        log_test("2. Redmi 10 Camera Connection & Snapshot Test", False, str(e))
+        log_test("2. Camera Connection & Snapshot Test", False, str(e))
 
     # 3. Stream reception & Live frame verification
     try:
@@ -90,7 +90,7 @@ def main():
     # 7. Local Network Restriction Verification (Negative Test)
     from wheat_watch.network import is_local_network_ip
     is_public_blocked = not is_local_network_ip("8.8.8.8")
-    is_lan_allowed = is_local_network_ip("192.168.31.211") and is_local_network_ip("127.0.0.1")
+    is_lan_allowed = is_local_network_ip("192.168.1.50") and is_local_network_ip("127.0.0.1")
     log_test("7. Local Network Restriction (Public IP Blocked, LAN Allowed)", is_public_blocked and is_lan_allowed, f"Public 8.8.8.8 blocked: {is_public_blocked}, LAN allowed: {is_lan_allowed}")
 
     # 8. Check Active Telemetry & CPU/Memory

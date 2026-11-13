@@ -231,7 +231,11 @@ class FlashlightController:
             broadcaster.broadcast_sync("flashlight", self.get_status())
 
     def _send_hardware_command(self, turn_on: bool, trigger: Optional[str] = None) -> bool:
-        """Send explicit ON (/enabletorch) or OFF (/disabletorch) command to Redmi 10 IP Webcam."""
+        """Send explicit ON (/enabletorch) or OFF (/disabletorch) command to camera device."""
+        if not camera_worker.has_flashlight:
+            self.last_command_result = "UNSUPPORTED"
+            return False
+
         now = time.time()
         # Rate limit hardware commands to at most once per 250ms
         if now - self._last_command_time < 0.25:
@@ -281,6 +285,7 @@ class FlashlightController:
                 countdown = max(0.0, round(inactivity_timeout - inactivity_dur, 1))
 
             return {
+                "supported": camera_worker.has_flashlight,
                 "mode": self.mode,  # "auto", "manual", "off"
                 "is_on": self.is_on,  # Actual verified hardware state
                 "requested_state": self.requested_state,
