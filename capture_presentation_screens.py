@@ -243,7 +243,27 @@ class CDPSession:
             }})()
         """)
 
+    async def force_close_all_modals(self):
+        """Force all open modals (PIN, first run, event detail) to close completely."""
+        await self.eval("""
+            (() => {
+                document.querySelectorAll('.soc-modal').forEach(m => {
+                    m.classList.remove('open');
+                    m.style.display = 'none';
+                });
+            })()
+        """)
+        await asyncio.sleep(0.2)
+
     async def screenshot(self, filename: str):
+        # Guarantee no rogue modal is open for views other than the forensic modal
+        if "Forensic" not in filename and "07_" not in filename:
+            open_count = await self.eval("document.querySelectorAll('.soc-modal.open').length")
+            if open_count and int(open_count) > 0:
+                print(f"[Sanitizer] Open modal detected before capturing {filename}! Closing all modals...")
+                await self.force_close_all_modals()
+                await asyncio.sleep(0.3)
+
         res = await self.send("Page.captureScreenshot", {"format": "png"})
         import base64
         raw = base64.b64decode(res["data"])
@@ -319,27 +339,27 @@ async def capture_all_screens(token: str):
         """)
         await asyncio.sleep(0.5)
 
-        # Reload or trigger state update
+        # Reload page with authenticated session
         await cdp.send("Page.navigate", {"url": f"{BASE_URL}/#overview"})
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(2.5)
 
-        # Close any open modal just in case
-        await cdp.eval("""
-            (() => {
-                const setupModal = document.getElementById('pinSetupModal');
-                if (setupModal) setupModal.style.display = 'none';
-                const pinModal = document.getElementById('pinModal');
-                if (pinModal) pinModal.classList.remove('open');
-            })()
-        """)
+        # Force dismiss any and all modals (firstRunPinModal, pinModal, etc.)
+        await cdp.force_close_all_modals()
         await asyncio.sleep(0.5)
 
+        # ---------------------------------------------------------------------
         # 1. Main SOC Overview Dashboard
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="overview"]')
         await asyncio.sleep(2.5)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("01_Main_Monitoring_Dashboard.png")
 
+        # ---------------------------------------------------------------------
         # 2. Live Cinema Monitoring Workspace
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="monitoring"]')
         await asyncio.sleep(2.5)
         await cdp.eval("""
@@ -355,19 +375,31 @@ async def capture_all_screens(token: str):
             })()
         """)
         await asyncio.sleep(0.8)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("02_Live_Cinema_Monitoring.png")
 
+        # ---------------------------------------------------------------------
         # 3. Detection & Classification Center
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="detection"]')
         await asyncio.sleep(2.0)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("03_Detection_Classification_Center.png")
 
+        # ---------------------------------------------------------------------
         # 4. Recording Status & HUD Indicators
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="monitoring"]')
         await asyncio.sleep(1.0)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("04_Recording_Status_HUD.png")
 
+        # ---------------------------------------------------------------------
         # 5. Incident History Timeline
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="incidents"]')
         await asyncio.sleep(2.0)
         await cdp.eval("""
@@ -377,9 +409,13 @@ async def capture_all_screens(token: str):
             })()
         """)
         await asyncio.sleep(1.0)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("05_Event_Timeline_Records.png")
 
+        # ---------------------------------------------------------------------
         # 6. Incident Gallery Grid
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.eval("""
             (() => {
                 const btn = document.getElementById('viewTabGallery');
@@ -387,9 +423,13 @@ async def capture_all_screens(token: str):
             })()
         """)
         await asyncio.sleep(1.2)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("06_Incident_Gallery_Grid.png")
 
-        # 7. Forensic Multi-Frame Comparison Modal
+        # ---------------------------------------------------------------------
+        # 7. Forensic Multi-Frame Comparison Modal (Event Detail Inspection)
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.eval("""
             (async () => {
                 const cards = document.querySelectorAll('.incident-card');
@@ -405,48 +445,92 @@ async def capture_all_screens(token: str):
                 }
             })()
         """)
-        await asyncio.sleep(2.2)
-        await cdp.screenshot("07_Extracted_Forensic_Images.png")
-
-        # Close modal
+        await asyncio.sleep(2.5)
+        # Ensure modal is explicitly styled visible for screenshot 07
         await cdp.eval("""
             (() => {
-                const modal = document.getElementById('incidentModal');
-                if (modal) modal.style.display = 'none';
-                const closeBtn = document.querySelector('#incidentModal .btn-close-modal');
-                if (closeBtn) closeBtn.click();
+                const modal = document.getElementById('eventDetailModal');
+                if (modal) {
+                    modal.style.display = 'flex';
+                    modal.classList.add('open');
+                }
             })()
         """)
         await asyncio.sleep(0.5)
+        await cdp.screenshot("07_Extracted_Forensic_Images.png")
 
-        # 8. Acoustic Intelligence & Audio Monitoring
+        # CRITICAL: Dismiss and close the event detail modal completely!
+        print("[CDP] Closing eventDetailModal after forensic capture...")
+        await cdp.eval("""
+            (() => {
+                const modal = document.getElementById('eventDetailModal');
+                if (modal) {
+                    modal.classList.remove('open');
+                    modal.style.display = 'none';
+                }
+                const closeBtn = document.querySelector('#eventDetailModal .modal-close-btn');
+                if (closeBtn) closeBtn.click();
+                document.querySelectorAll('.soc-modal').forEach(m => {
+                    m.classList.remove('open');
+                    m.style.display = 'none';
+                });
+            })()
+        """)
+        await asyncio.sleep(1.0)
+        await cdp.force_close_all_modals()
+
+        # ---------------------------------------------------------------------
+        # 8. Acoustic Intelligence & Audio Monitoring (Modal MUST be absent!)
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="audio"]')
         await asyncio.sleep(1.8)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("08_Acoustic_Intelligence_Audio.png")
 
-        # 9. Hardware Automation & Smart Flashlight
+        # ---------------------------------------------------------------------
+        # 9. Hardware Automation & Smart Flashlight (Modal MUST be absent!)
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="automation"]')
         await asyncio.sleep(1.8)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("09_Hardware_Automation_Lighting.png")
 
-        # 10. Native Device & Browser Notification Center
+        # ---------------------------------------------------------------------
+        # 10. Native Device & Browser Notification Center (Modal MUST be absent!)
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="notifications"]')
         await asyncio.sleep(1.8)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("10_Notification_Interface.png")
 
-        # 11. System Diagnostics & Analytics Telemetry
+        # ---------------------------------------------------------------------
+        # 11. System Diagnostics & Analytics Telemetry (Modal MUST be absent!)
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="analytics"]')
         await asyncio.sleep(1.8)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("11_System_Diagnostics_Telemetry.png")
 
-        # 12. Camera & System Settings Console
+        # ---------------------------------------------------------------------
+        # 12. Camera & System Settings Console (Modal MUST be absent!)
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="settings"]')
         await asyncio.sleep(1.8)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("12_Camera_Audio_Configuration.png")
 
-        # 13. Security Firewall & Access Control
+        # ---------------------------------------------------------------------
+        # 13. Security Firewall & Access Control (Modal MUST be absent!)
+        # ---------------------------------------------------------------------
+        await cdp.force_close_all_modals()
         await cdp.click('[data-view="security"]')
         await asyncio.sleep(1.8)
+        await cdp.force_close_all_modals()
         await cdp.screenshot("13_Security_Access_Control.png")
 
     try:
@@ -518,7 +602,6 @@ def main():
             token = data.get("token", "")
             print(f"  [✓] Master PIN setup initialized. Token: {token[:12]}...")
     except Exception:
-        # Already setup, verify
         try:
             verify_req = urllib.request.Request(
                 "http://127.0.0.1:8000/api/auth/verify",

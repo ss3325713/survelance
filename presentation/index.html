@@ -347,7 +347,7 @@
       <span class="brand-badge">SOC SLIDE DECK</span>
     </div>
     <div class="controls">
-      <span class="slide-counter" id="slideCounter">Slide 1 of 13</span>
+      <span class="slide-counter" id="slideCounter">Slide 1 of 14</span>
       <button class="nav-btn" id="prevBtn" title="Previous Slide (← / Up)">← Prev</button>
       <button class="nav-btn" id="nextBtn" title="Next Slide (→ / Down / Space)">Next →</button>
       <button class="nav-btn" id="fullBtn" title="Toggle Fullscreen (F)">⛶ Fullscreen</button>
@@ -691,10 +691,38 @@
       </div>
     </section>
 
-    <!-- Slide 13: Security & Access Control -->
+    <!-- Slide 13: Camera & Audio Stream Configuration -->
     <section class="slide" data-slide="13">
       <div class="slide-header">
-        <span class="slide-tag">12 // ZERO-TRUST SECURITY</span>
+        <span class="slide-tag">12 // STREAM CONFIGURATION</span>
+        <h2 class="slide-title">Camera & Audio Stream Configuration</h2>
+        <p class="slide-subtitle">Decoupled protocol routing for RTSP video, HTTP/MJPEG, and linear PCM network audio.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/12_Camera_Audio_Configuration.png" alt="Camera & Audio Configuration">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>📹 Video Protocol Ingestion</h4>
+            <p>Connects to RTSP H.264/H.265 streams via OpenCV VideoCapture or HTTP multipart MJPEG feeds without vendor locks.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🎙️ Independent Audio Routing</h4>
+            <p>Uncompressed HTTP linear PCM/WAV (16kHz/44.1kHz) audio input separated from video pipeline.</p>
+          </div>
+          <div class="feature-card">
+            <h4>⏱️ Recording Duration Caps</h4>
+            <p>Configurable 60-second video segment rollover and 15-second continuous-motion inactivity reset.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 14: Security & Access Control -->
+    <section class="slide" data-slide="14">
+      <div class="slide-header">
+        <span class="slide-tag">13 // ZERO-TRUST SECURITY</span>
         <h2 class="slide-title">Cryptographic Security & LAN Firewall</h2>
         <p class="slide-subtitle">Zero default backdoors, PBKDF2 salted authentication, and private network isolation.</p>
       </div>
