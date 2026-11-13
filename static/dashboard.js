@@ -72,6 +72,11 @@
     DOM.btnNightNight = document.getElementById('btnNightNight');
     DOM.btnNightAuto = document.getElementById('btnNightAuto');
     DOM.uptimeText = document.getElementById('uptimeText');
+    DOM.topbarRecBadge = document.getElementById('topbarRecBadge');
+    DOM.recStateLabel = document.getElementById('recStateLabel');
+    DOM.recDurationText = document.getElementById('recDurationText');
+    DOM.detectionPill = document.getElementById('detectionPill');
+    DOM.detectionPillText = document.getElementById('detectionPillText');
     DOM.cameraPill = document.getElementById('cameraPill');
     DOM.cameraPillText = document.getElementById('cameraPillText');
     DOM.micPill = document.getElementById('micPill');
@@ -98,6 +103,22 @@
     DOM.overviewTorchAutoBtn = document.getElementById('overviewTorchAutoBtn');
     DOM.overviewTorchOnBtn = document.getElementById('overviewTorchOnBtn');
     DOM.overviewTorchOffBtn = document.getElementById('overviewTorchOffBtn');
+    DOM.overviewDetectionCard = document.getElementById('overviewDetectionCard');
+    DOM.overviewDetectBadge = document.getElementById('overviewDetectBadge');
+    DOM.overviewDetectVal = document.getElementById('overviewDetectVal');
+    DOM.overviewDetectMeta = document.getElementById('overviewDetectMeta');
+    DOM.detCatMotion = document.getElementById('detCatMotion');
+    DOM.detCatPerson = document.getElementById('detCatPerson');
+    DOM.detCatAnimal = document.getElementById('detCatAnimal');
+    DOM.detCatBird = document.getElementById('detCatBird');
+    DOM.detCatMonkey = document.getElementById('detCatMonkey');
+    DOM.overviewVideoBadge = document.getElementById('overviewVideoBadge');
+    DOM.overviewVideoVal = document.getElementById('overviewVideoVal');
+    DOM.overviewVideoMeta = document.getElementById('overviewVideoMeta');
+    DOM.videoQueueCount = document.getElementById('videoQueueCount');
+    DOM.videoProcCount = document.getElementById('videoProcCount');
+    DOM.videoDoneCount = document.getElementById('videoDoneCount');
+    DOM.videoFailCount = document.getElementById('videoFailCount');
     DOM.overviewStreamImg = document.getElementById('overviewStreamImg');
     DOM.overviewHudFps = document.getElementById('overviewHudFps');
     DOM.overviewHudRes = document.getElementById('overviewHudRes');
@@ -129,6 +150,11 @@
     DOM.modeMjpegBtn = document.getElementById('modeMjpegBtn');
     DOM.modeCanvasBtn = document.getElementById('modeCanvasBtn');
     DOM.modeDirectPhoneLink = document.getElementById('modeDirectPhoneLink');
+    DOM.cinemaDetectionHud = document.getElementById('cinemaDetectionHud');
+    DOM.cinemaDetectBadge = document.getElementById('cinemaDetectBadge');
+    DOM.cinemaDetectText = document.getElementById('cinemaDetectText');
+    DOM.cinemaRecBadge = document.getElementById('cinemaRecBadge');
+    DOM.cinemaRecText = document.getElementById('cinemaRecText');
     DOM.hudTorchBtn = document.getElementById('hudTorchBtn');
     DOM.fastRefreshBtn = document.getElementById('fastRefreshBtn');
     DOM.snapshotBtn = document.getElementById('snapshotBtn');
@@ -157,6 +183,17 @@
     DOM.resetControlsBtn = document.getElementById('resetControlsBtn');
 
     // Detection Center
+    DOM.detectionLiveMonitorPanel = document.getElementById('detectionLiveMonitorPanel');
+    DOM.detCenterStatusBadge = document.getElementById('detCenterStatusBadge');
+    DOM.detCenterMotionState = document.getElementById('detCenterMotionState');
+    DOM.detCenterPrimaryTarget = document.getElementById('detCenterPrimaryTarget');
+    DOM.detCenterConfidence = document.getElementById('detCenterConfidence');
+    DOM.detCenterLastTime = document.getElementById('detCenterLastTime');
+    DOM.detCenterPillMotion = document.getElementById('detCenterPillMotion');
+    DOM.detCenterPillPerson = document.getElementById('detCenterPillPerson');
+    DOM.detCenterPillAnimal = document.getElementById('detCenterPillAnimal');
+    DOM.detCenterPillBird = document.getElementById('detCenterPillBird');
+    DOM.detCenterPillMonkey = document.getElementById('detCenterPillMonkey');
     DOM.detActiveProfile = document.getElementById('detActiveProfile');
     DOM.detMinArea = document.getElementById('detMinArea');
     DOM.detMotionThresh = document.getElementById('detMotionThresh');
@@ -272,6 +309,12 @@
     DOM.cfgCdMotion = document.getElementById('cfgCdMotion');
     DOM.cfgFlashTimeout = document.getElementById('cfgFlashTimeout');
     DOM.cfgFlashLuxCutoff = document.getElementById('cfgFlashLuxCutoff');
+    DOM.cfgVideoEnabled = document.getElementById('cfgVideoEnabled');
+    DOM.cfgVideoInactivityTimeout = document.getElementById('cfgVideoInactivityTimeout');
+    DOM.cfgVideoMaxDuration = document.getElementById('cfgVideoMaxDuration');
+    DOM.cfgVideoFps = document.getElementById('cfgVideoFps');
+    DOM.cfgVideoMaxExtracts = document.getElementById('cfgVideoMaxExtracts');
+    DOM.cfgVideoMinSharpness = document.getElementById('cfgVideoMinSharpness');
     DOM.cfgRetentionDays = document.getElementById('cfgRetentionDays');
     DOM.cfgStorageLimitMb = document.getElementById('cfgStorageLimitMb');
     DOM.cfgNewPin = document.getElementById('cfgNewPin');
@@ -294,9 +337,13 @@
     DOM.btnCompInitial = document.getElementById('btnCompInitial');
     DOM.btnCompFinal = document.getElementById('btnCompFinal');
     DOM.btnCompSideBySide = document.getElementById('btnCompSideBySide');
+    DOM.btnCompExtracts = document.getElementById('btnCompExtracts');
+    DOM.extractsCountBadge = document.getElementById('extractsCountBadge');
     DOM.singleImgContainer = document.getElementById('singleImgContainer');
     DOM.eventDetailImg = document.getElementById('eventDetailImg');
     DOM.sideBySideContainer = document.getElementById('sideBySideContainer');
+    DOM.videoExtractsContainer = document.getElementById('videoExtractsContainer');
+    DOM.videoExtractsGrid = document.getElementById('videoExtractsGrid');
     DOM.eventDetailInitialImg = document.getElementById('eventDetailInitialImg');
     DOM.eventDetailFinalImg = document.getElementById('eventDetailFinalImg');
     DOM.eventDetailCategory = document.getElementById('eventDetailCategory');
@@ -1033,6 +1080,243 @@
       DOM.livePhoneSensorHint.style.color = hasSensors ? '#4ade80' : '#94a3b8';
     }
 
+    // =========================================================================
+    // Real-Time Live Detection & Object Classification Indicators
+    // =========================================================================
+    const liveDet = s.live_detection || monitoring.live_detection || {};
+    const threadAlive = liveDet.thread_alive !== false && monitoring.thread_alive !== false;
+    const pipeError = liveDet.pipeline_error || monitoring.pipeline_error;
+    const hasMotion = !!liveDet.has_motion;
+    const primCat = liveDet.primary_category;
+    const primLabel = liveDet.primary_label;
+    const primConf = liveDet.primary_confidence !== null && liveDet.primary_confidence !== undefined ? liveDet.primary_confidence : null;
+    const catSum = liveDet.categories_summary || {};
+    const lastDetTs = liveDet.last_detection_timestamp || monitoring.last_detection_timestamp;
+
+    let detState = 'clear'; // 'clear', 'motion', 'person', 'animal', 'bird', 'monkey', 'error'
+    let detPillLabel = 'DETECT: CLEAR';
+    let detBadgeLabel = 'NO MOTION';
+    let detValLabel = 'CLEAR';
+    let detMetaLabel = 'Confidence: --';
+
+    if (!threadAlive || pipeError) {
+      detState = 'error';
+      detPillLabel = pipeError ? '⚠️ DETECT: RESTARTING' : '⚠️ DETECT: OFFLINE';
+      detBadgeLabel = 'PIPELINE ERROR';
+      detValLabel = 'RECOVERING...';
+      detMetaLabel = pipeError || 'Worker thread recovering';
+    } else if (hasMotion) {
+      if (primCat && primCat !== 'General motion') {
+        const confPct = primConf ? `${Math.round(primConf * 100)}%` : '';
+        if (primCat === 'Person') {
+          detState = 'person';
+          detPillLabel = `🚨 PERSON ${confPct}`.trim();
+        } else if (primCat.toLowerCase().includes('monkey')) {
+          detState = 'monkey';
+          detPillLabel = `🐒 MONKEY ${confPct}`.trim();
+        } else if (primCat === 'Bird') {
+          detState = 'bird';
+          detPillLabel = `🦅 BIRD ${confPct}`.trim();
+        } else {
+          detState = 'animal';
+          detPillLabel = `🐾 ANIMAL ${confPct}`.trim();
+        }
+        detBadgeLabel = `${primCat.toUpperCase()} DETECTED`;
+        detValLabel = primLabel || primCat;
+        detMetaLabel = `Confidence: ${confPct || '--%'} | Area: ${(liveDet.motion_percent || 0).toFixed(1)}%`;
+      } else {
+        detState = 'motion';
+        const motionPct = (liveDet.motion_percent || 0).toFixed(1);
+        detPillLabel = `⚡ MOTION (${motionPct}%)`;
+        detBadgeLabel = 'MOTION DETECTED';
+        detValLabel = `Active Area (${motionPct}%)`;
+        detMetaLabel = `Analyzing frames with YOLOv8n...`;
+      }
+    }
+
+    if (lastDetTs) {
+      const secAgo = Math.max(0, Math.round(Date.now() / 1000 - lastDetTs));
+      const timeStr = secAgo < 60 ? `${secAgo}s ago` : `${Math.floor(secAgo / 60)}m ago`;
+      detMetaLabel += ` | Last: ${timeStr}`;
+    }
+
+    // Topbar Pill
+    if (DOM.detectionPill) {
+      DOM.detectionPill.className = `topbar-detection-pill state-${detState}`;
+    }
+    if (DOM.detectionPillText) {
+      DOM.detectionPillText.textContent = detPillLabel;
+    }
+
+    // Cinema Screen Overlay
+    if (DOM.cinemaDetectBadge) {
+      DOM.cinemaDetectBadge.className = `cinema-hud-badge state-${detState === 'clear' ? 'clear' : (detState === 'motion' ? 'motion' : 'alert')}`;
+    }
+    if (DOM.cinemaDetectText) {
+      DOM.cinemaDetectText.textContent = detPillLabel;
+    }
+
+    // Overview Card
+    if (DOM.overviewDetectBadge) {
+      DOM.overviewDetectBadge.className = `stat-badge ${detState === 'clear' ? 'badge-primary' : (detState === 'motion' ? 'badge-warning' : 'badge-danger')}`;
+      DOM.overviewDetectBadge.textContent = detBadgeLabel;
+    }
+    if (DOM.overviewDetectVal) {
+      DOM.overviewDetectVal.textContent = detValLabel;
+      DOM.overviewDetectVal.style.color = detState === 'clear' ? 'var(--text-primary)' : (detState === 'motion' ? '#fde047' : '#f87171');
+    }
+    if (DOM.overviewDetectMeta) {
+      DOM.overviewDetectMeta.textContent = detMetaLabel;
+    }
+
+    // Category Tags (Overview & Detection Center)
+    const isMot = catSum.motion || hasMotion;
+    const isPer = catSum.person || primCat === 'Person';
+    const isAnim = catSum.animal || (primCat && primCat.toLowerCase().includes('animal'));
+    const isBird = catSum.bird || primCat === 'Bird';
+    const isMonk = catSum.monkey || (primCat && primCat.toLowerCase().includes('monkey'));
+
+    if (DOM.detCatMotion) DOM.detCatMotion.classList.toggle('active', isMot);
+    if (DOM.detCatPerson) DOM.detCatPerson.classList.toggle('active', isPer);
+    if (DOM.detCatAnimal) DOM.detCatAnimal.classList.toggle('active', isAnim);
+    if (DOM.detCatBird) DOM.detCatBird.classList.toggle('active', isBird);
+    if (DOM.detCatMonkey) DOM.detCatMonkey.classList.toggle('active', isMonk);
+
+    if (DOM.detCenterPillMotion) DOM.detCenterPillMotion.classList.toggle('active', isMot);
+    if (DOM.detCenterPillPerson) DOM.detCenterPillPerson.classList.toggle('active', isPer);
+    if (DOM.detCenterPillAnimal) DOM.detCenterPillAnimal.classList.toggle('active', isAnim);
+    if (DOM.detCenterPillBird) DOM.detCenterPillBird.classList.toggle('active', isBird);
+    if (DOM.detCenterPillMonkey) DOM.detCenterPillMonkey.classList.toggle('active', isMonk);
+
+    // Detection Center Panel
+    if (DOM.detCenterMotionState) {
+      DOM.detCenterMotionState.textContent = hasMotion ? `Active Motion (${(liveDet.motion_percent || 0).toFixed(1)}% area)` : 'No Motion (Standby)';
+      DOM.detCenterMotionState.style.color = hasMotion ? '#fde047' : 'var(--text-primary)';
+    }
+    if (DOM.detCenterPrimaryTarget) {
+      DOM.detCenterPrimaryTarget.textContent = primLabel || (hasMotion ? 'General Motion' : 'None (Clear)');
+      DOM.detCenterPrimaryTarget.style.color = primCat && primCat !== 'General motion' ? '#f87171' : (hasMotion ? '#fde047' : 'var(--text-primary)');
+    }
+    if (DOM.detCenterConfidence) {
+      DOM.detCenterConfidence.textContent = primConf ? `${Math.round(primConf * 100)}%` : '--%';
+    }
+    if (DOM.detCenterLastTime) {
+      DOM.detCenterLastTime.textContent = lastDetTs ? new Date(lastDetTs * 1000).toLocaleTimeString() : 'Never';
+    }
+    if (DOM.detCenterStatusBadge) {
+      DOM.detCenterStatusBadge.className = `badge ${threadAlive ? (hasMotion ? 'badge-danger' : 'badge-primary') : 'badge-warning'}`;
+      DOM.detCenterStatusBadge.textContent = threadAlive ? (hasMotion ? 'TARGET TRACKING' : 'SURVEILLANCE ACTIVE') : 'RECOVERING';
+    }
+
+    // =========================================================================
+    // Motion Video Recording Subsystem & 8-State Engine Status
+    // =========================================================================
+    const vid = s.video_recording || monitoring.video_recording || {};
+    const overallState = vid.overall_state || (vid.is_recording ? 'RECORDING' : 'IDLE');
+    const isRecording = !!vid.is_recording;
+    const curRecSec = vid.recording_duration_sec || 0;
+    const inactRemSec = vid.inactivity_remaining_sec || 0;
+    const segIdx = vid.segment_index || 1;
+    const queueStats = vid.queue || {};
+    const maxDur = vid.max_segment_duration_sec || 60;
+
+    // 8 States: IDLE, RECORDING, FINALIZING, QUEUED, PROCESSING, VERIFYING, COMPLETED, FAILED
+    const stateLower = overallState.toLowerCase();
+
+    // Topbar Pill
+    if (DOM.topbarRecBadge) {
+      DOM.topbarRecBadge.className = `topbar-rec-pill state-${stateLower}`;
+      if (DOM.recStateLabel) {
+        if (overallState === 'RECORDING') {
+          DOM.recStateLabel.textContent = `REC (Seg #${segIdx})`;
+        } else if (overallState === 'FINALIZING') {
+          DOM.recStateLabel.textContent = 'FINALIZING...';
+        } else if (overallState === 'QUEUED') {
+          DOM.recStateLabel.textContent = `QUEUED (${queueStats.queued || 1})`;
+        } else if (overallState === 'PROCESSING') {
+          DOM.recStateLabel.textContent = 'AI EXTRACTING';
+        } else if (overallState === 'VERIFYING') {
+          DOM.recStateLabel.textContent = 'VERIFYING';
+        } else if (overallState === 'COMPLETED') {
+          DOM.recStateLabel.textContent = '✓ COMPLETED';
+        } else if (overallState === 'FAILED') {
+          DOM.recStateLabel.textContent = '⚠️ FAILED';
+        } else {
+          DOM.recStateLabel.textContent = 'REC IDLE';
+        }
+      }
+      if (DOM.recDurationText) {
+        if (overallState === 'RECORDING') {
+          const rm = Math.floor(curRecSec / 60);
+          const rs = Math.floor(curRecSec % 60);
+          DOM.recDurationText.textContent = `${rm.toString().padStart(2, '0')}:${rs.toString().padStart(2, '0')}`;
+        } else {
+          DOM.recDurationText.textContent = '';
+        }
+      }
+    }
+
+    // Cinema Screen Recording Overlay
+    if (DOM.cinemaRecBadge) {
+      DOM.cinemaRecBadge.className = `cinema-hud-badge state-${stateLower === 'recording' ? 'recording' : (stateLower === 'processing' || stateLower === 'verifying' ? 'processing' : 'idle')}`;
+    }
+    if (DOM.cinemaRecText) {
+      if (overallState === 'RECORDING') {
+        DOM.cinemaRecText.textContent = `REC ${curRecSec.toFixed(0)}s (Seg #${segIdx})`;
+      } else {
+        DOM.cinemaRecText.textContent = `REC: ${overallState}`;
+      }
+    }
+
+    // Overview Card
+    if (DOM.overviewVideoBadge) {
+      let badgeClass = 'badge-primary';
+      if (overallState === 'RECORDING') badgeClass = 'badge-danger';
+      else if (overallState === 'FINALIZING' || overallState === 'QUEUED') badgeClass = 'badge-warning';
+      else if (overallState === 'PROCESSING' || overallState === 'VERIFYING') badgeClass = 'badge-info';
+      else if (overallState === 'COMPLETED') badgeClass = 'badge-success';
+      else if (overallState === 'FAILED') badgeClass = 'badge-danger';
+
+      DOM.overviewVideoBadge.className = `stat-badge ${badgeClass}`;
+      DOM.overviewVideoBadge.textContent = overallState;
+    }
+    if (DOM.overviewVideoVal) {
+      if (overallState === 'RECORDING') {
+        DOM.overviewVideoVal.textContent = `REC: ${curRecSec.toFixed(0)}s (Seg #${segIdx})`;
+        DOM.overviewVideoVal.style.color = '#ef4444';
+      } else if (overallState === 'FINALIZING') {
+        DOM.overviewVideoVal.textContent = 'CLOSING SEGMENT...';
+        DOM.overviewVideoVal.style.color = '#f59e0b';
+      } else if (overallState === 'QUEUED') {
+        DOM.overviewVideoVal.textContent = `QUEUED (${queueStats.queued || 1} pending)`;
+        DOM.overviewVideoVal.style.color = '#c084fc';
+      } else if (overallState === 'PROCESSING') {
+        DOM.overviewVideoVal.textContent = 'EXTRACTING FRAMES';
+        DOM.overviewVideoVal.style.color = '#60a5fa';
+      } else if (overallState === 'VERIFYING') {
+        DOM.overviewVideoVal.textContent = 'VERIFYING DISK IMAGES';
+        DOM.overviewVideoVal.style.color = '#22d3ee';
+      } else if (overallState === 'COMPLETED') {
+        DOM.overviewVideoVal.textContent = 'INCIDENT UPDATED';
+        DOM.overviewVideoVal.style.color = '#4ade80';
+      } else if (overallState === 'FAILED') {
+        DOM.overviewVideoVal.textContent = 'PROCESSING ERROR';
+        DOM.overviewVideoVal.style.color = '#ef4444';
+      } else {
+        DOM.overviewVideoVal.textContent = 'STANDBY';
+        DOM.overviewVideoVal.style.color = 'var(--text-primary)';
+      }
+    }
+    if (DOM.overviewVideoMeta) {
+      DOM.overviewVideoMeta.textContent = isRecording
+        ? `Inactivity left: ${inactRemSec.toFixed(1)}s | Max: ${maxDur.toFixed(0)}s`
+        : `Max: ${maxDur.toFixed(0)}s | Inactivity: 15s`;
+    }
+    if (DOM.videoQueueCount) DOM.videoQueueCount.textContent = queueStats.queued || 0;
+    if (DOM.videoProcCount) DOM.videoProcCount.textContent = queueStats.processing || 0;
+    if (DOM.videoDoneCount) DOM.videoDoneCount.textContent = queueStats.completed || 0;
+    if (DOM.videoFailCount) DOM.videoFailCount.textContent = queueStats.failed || 0;
+
     // Database Status
     const dbOk = s.database_healthy !== false;
     if (DOM.dbPill) DOM.dbPill.className = `soc-pill ${dbOk ? 'pill-info' : 'pill-danger'}`;
@@ -1156,11 +1440,21 @@
         (ev.initial_snapshot_path && ev.final_snapshot_path && ev.initial_snapshot_path !== ev.final_snapshot_path)
       );
 
+      const extractCount = (ev.details && Array.isArray(ev.details.images))
+        ? ev.details.images.filter(x => x.tag === 'video_extract').length
+        : 0;
+      let tagBadge = '';
+      if (extractCount > 0) {
+        tagBadge = `<span class="incident-tag-pill" style="background: rgba(14, 165, 233, 0.85); color: #fff;">🎞️ ${extractCount} EXTRACTS</span>`;
+      } else if (hasMultiFrame) {
+        tagBadge = '<span class="incident-tag-pill">2-FRAME COMPARE</span>';
+      }
+
       return `
         <div class="incident-card" data-event-id="${ev.id}" onclick="window.PySurveillance.inspectEvent(${ev.id})">
           <div class="incident-thumb-box">
             <img src="${imgSrc}" alt="Incident ${ev.id}" loading="lazy" onerror="this.src='/static/favicon.svg'">
-            ${hasMultiFrame ? '<span class="incident-tag-pill">2-FRAME COMPARE</span>' : ''}
+            ${tagBadge}
           </div>
           <div class="incident-info-box">
             <div class="incident-title-row">
@@ -1227,20 +1521,44 @@
       const finalSrc = getEventImageSrc(ev, 'final');
       const hasBoth = Boolean(initialSrc && finalSrc && initialSrc !== finalSrc);
 
-      if (DOM.comparisonTabBar) {
-        DOM.comparisonTabBar.style.display = hasBoth ? 'flex' : 'none';
+      const allImgs = (ev.details && Array.isArray(ev.details.images)) ? ev.details.images : [];
+      const extracts = allImgs.filter(x => x.tag === 'video_extract');
+
+      if (DOM.extractsCountBadge) {
+        DOM.extractsCountBadge.textContent = extracts.length;
       }
-      if (DOM.btnCompInitial && DOM.btnCompFinal && DOM.btnCompSideBySide) {
+      if (DOM.btnCompExtracts) {
+        DOM.btnCompExtracts.style.display = extracts.length > 0 ? 'inline-flex' : 'none';
+        DOM.btnCompExtracts.classList.remove('active');
+      }
+
+      const hasMultiTab = hasBoth || extracts.length > 0;
+      if (DOM.comparisonTabBar) {
+        DOM.comparisonTabBar.style.display = hasMultiTab ? 'flex' : 'none';
+      }
+      if (DOM.btnCompInitial) {
         DOM.btnCompInitial.classList.remove('active');
+        DOM.btnCompInitial.style.display = initialSrc ? 'inline-flex' : 'none';
+      }
+      if (DOM.btnCompFinal) {
         DOM.btnCompFinal.classList.add('active');
+        DOM.btnCompFinal.style.display = finalSrc ? 'inline-flex' : 'none';
+      }
+      if (DOM.btnCompSideBySide) {
         DOM.btnCompSideBySide.classList.remove('active');
+        DOM.btnCompSideBySide.style.display = hasBoth ? 'inline-flex' : 'none';
       }
       if (DOM.sideBySideContainer) {
         DOM.sideBySideContainer.style.display = 'none';
       }
+      if (DOM.videoExtractsContainer) {
+        DOM.videoExtractsContainer.style.display = 'none';
+      }
       if (DOM.singleImgContainer) {
         DOM.singleImgContainer.style.display = 'flex';
       }
+
+      renderVideoExtracts(extracts);
 
       if (DOM.eventDetailImg) DOM.eventDetailImg.src = finalSrc || initialSrc || '/static/favicon.svg';
       if (DOM.eventDetailInitialImg) DOM.eventDetailInitialImg.src = initialSrc;
@@ -1330,10 +1648,12 @@
       DOM.btnCompInitial.addEventListener('click', () => {
         if (!state.activeEventData) return;
         DOM.btnCompInitial.classList.add('active');
-        DOM.btnCompFinal.classList.remove('active');
-        DOM.btnCompSideBySide.classList.remove('active');
-        DOM.singleImgContainer.style.display = 'flex';
-        DOM.sideBySideContainer.style.display = 'none';
+        if (DOM.btnCompFinal) DOM.btnCompFinal.classList.remove('active');
+        if (DOM.btnCompSideBySide) DOM.btnCompSideBySide.classList.remove('active');
+        if (DOM.btnCompExtracts) DOM.btnCompExtracts.classList.remove('active');
+        if (DOM.singleImgContainer) DOM.singleImgContainer.style.display = 'flex';
+        if (DOM.sideBySideContainer) DOM.sideBySideContainer.style.display = 'none';
+        if (DOM.videoExtractsContainer) DOM.videoExtractsContainer.style.display = 'none';
         DOM.eventDetailImg.src = getEventImageSrc(state.activeEventData, 'initial');
         if (DOM.stageFrameIndicator && DOM.sideInitialTime) {
           DOM.stageFrameIndicator.innerHTML = `<span>Frame: <strong>1️⃣ Initial Trigger</strong> (${DOM.sideInitialTime.textContent})</span>`;
@@ -1344,10 +1664,12 @@
       DOM.btnCompFinal.addEventListener('click', () => {
         if (!state.activeEventData) return;
         DOM.btnCompFinal.classList.add('active');
-        DOM.btnCompInitial.classList.remove('active');
-        DOM.btnCompSideBySide.classList.remove('active');
-        DOM.singleImgContainer.style.display = 'flex';
-        DOM.sideBySideContainer.style.display = 'none';
+        if (DOM.btnCompInitial) DOM.btnCompInitial.classList.remove('active');
+        if (DOM.btnCompSideBySide) DOM.btnCompSideBySide.classList.remove('active');
+        if (DOM.btnCompExtracts) DOM.btnCompExtracts.classList.remove('active');
+        if (DOM.singleImgContainer) DOM.singleImgContainer.style.display = 'flex';
+        if (DOM.sideBySideContainer) DOM.sideBySideContainer.style.display = 'none';
+        if (DOM.videoExtractsContainer) DOM.videoExtractsContainer.style.display = 'none';
         DOM.eventDetailImg.src = getEventImageSrc(state.activeEventData, 'final');
         if (DOM.stageFrameIndicator && DOM.sideFinalTime) {
           DOM.stageFrameIndicator.innerHTML = `<span>Frame: <strong>2️⃣ Peak Concluding</strong> (${DOM.sideFinalTime.textContent})</span>`;
@@ -1358,16 +1680,87 @@
       DOM.btnCompSideBySide.addEventListener('click', () => {
         if (!state.activeEventData) return;
         DOM.btnCompSideBySide.classList.add('active');
-        DOM.btnCompInitial.classList.remove('active');
-        DOM.btnCompFinal.classList.remove('active');
-        DOM.singleImgContainer.style.display = 'none';
-        DOM.sideBySideContainer.style.display = 'flex';
+        if (DOM.btnCompInitial) DOM.btnCompInitial.classList.remove('active');
+        if (DOM.btnCompFinal) DOM.btnCompFinal.classList.remove('active');
+        if (DOM.btnCompExtracts) DOM.btnCompExtracts.classList.remove('active');
+        if (DOM.singleImgContainer) DOM.singleImgContainer.style.display = 'none';
+        if (DOM.sideBySideContainer) DOM.sideBySideContainer.style.display = 'flex';
+        if (DOM.videoExtractsContainer) DOM.videoExtractsContainer.style.display = 'none';
         DOM.eventDetailInitialImg.src = getEventImageSrc(state.activeEventData, 'initial');
         DOM.eventDetailFinalImg.src = getEventImageSrc(state.activeEventData, 'final');
         if (DOM.stageFrameIndicator) {
           DOM.stageFrameIndicator.innerHTML = `<span>Mode: <strong>🔀 Side-by-Side Dual Comparison</strong></span>`;
         }
       });
+    }
+    if (DOM.btnCompExtracts) {
+      DOM.btnCompExtracts.addEventListener('click', () => {
+        if (!state.activeEventData) return;
+        DOM.btnCompExtracts.classList.add('active');
+        if (DOM.btnCompInitial) DOM.btnCompInitial.classList.remove('active');
+        if (DOM.btnCompFinal) DOM.btnCompFinal.classList.remove('active');
+        if (DOM.btnCompSideBySide) DOM.btnCompSideBySide.classList.remove('active');
+        if (DOM.singleImgContainer) DOM.singleImgContainer.style.display = 'none';
+        if (DOM.sideBySideContainer) DOM.sideBySideContainer.style.display = 'none';
+        if (DOM.videoExtractsContainer) DOM.videoExtractsContainer.style.display = 'block';
+
+        const allImgs = (state.activeEventData.details && Array.isArray(state.activeEventData.details.images)) ? state.activeEventData.details.images : [];
+        const extracts = allImgs.filter(x => x.tag === 'video_extract');
+        if (DOM.stageFrameIndicator) {
+          DOM.stageFrameIndicator.innerHTML = `<span>Mode: <strong>🎞️ Motion Video Extracts</strong> (${extracts.length} frames evaluated)</span>`;
+        }
+      });
+    }
+  }
+
+  function renderVideoExtracts(extracts) {
+    if (!DOM.videoExtractsGrid) return;
+    if (!extracts || extracts.length === 0) {
+      DOM.videoExtractsGrid.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1; padding: 30px; text-align: center; color: var(--text-muted);">
+          No motion video extracts attached to this incident session.
+        </div>`;
+      return;
+    }
+
+    DOM.videoExtractsGrid.innerHTML = extracts.map((ext, i) => {
+      let imgSrc = ext.path || '';
+      if (imgSrc && !imgSrc.startsWith('http') && !imgSrc.startsWith('/')) {
+        imgSrc = `/${imgSrc}`;
+      }
+      const offsetSec = (ext.time_offset_sec !== undefined) ? `+${ext.time_offset_sec.toFixed(1)}s` : `Frame #${ext.frame_index || i + 1}`;
+      const sharp = ext.sharpness ? `Sharpness: ${ext.sharpness.toFixed(0)}` : '';
+      const cat = ext.category || 'Extract';
+      const label = ext.label || cat;
+      const conf = ext.confidence ? `${(ext.confidence * 100).toFixed(0)}%` : '';
+
+      return `
+        <div class="video-extract-card" data-idx="${i}" onclick="window.PySurveillance.viewExtractLarge('${imgSrc}', '${label.replace(/'/g, "\\'")}', '${offsetSec}')">
+          <div class="video-extract-thumb-box">
+            <img src="${imgSrc}" alt="${label}" loading="lazy" onerror="this.src='/static/favicon.svg'">
+            <span class="extract-offset-tag">⏱️ ${offsetSec}</span>
+            ${sharp ? `<span class="extract-sharpness-tag">🔍 ${sharp}</span>` : ''}
+          </div>
+          <div class="video-extract-info">
+            <div class="video-extract-title" title="${label}">${label}</div>
+            <div class="video-extract-meta">
+              <span class="badge ${getCategoryBadgeClass(cat)}">${cat}</span>
+              <span>${conf}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function viewExtractLarge(src, label, offset) {
+    if (DOM.singleImgContainer) DOM.singleImgContainer.style.display = 'flex';
+    if (DOM.sideBySideContainer) DOM.sideBySideContainer.style.display = 'none';
+    if (DOM.videoExtractsContainer) DOM.videoExtractsContainer.style.display = 'none';
+    if (DOM.eventDetailImg) DOM.eventDetailImg.src = src;
+    if (DOM.downloadEventImgBtn) DOM.downloadEventImgBtn.href = src;
+    if (DOM.stageFrameIndicator) {
+      DOM.stageFrameIndicator.innerHTML = `<span>Extract: <strong>${label}</strong> (${offset})</span>`;
     }
   }
 
@@ -2064,6 +2457,14 @@
       if (DOM.cfgRetentionDays) DOM.cfgRetentionDays.value = storage.retention_days || 7;
       if (DOM.cfgStorageLimitMb) DOM.cfgStorageLimitMb.value = storage.max_storage_mb || 2048;
 
+      const vid = cfg.video_recording || {};
+      if (DOM.cfgVideoEnabled) DOM.cfgVideoEnabled.checked = vid.enabled !== false;
+      if (DOM.cfgVideoInactivityTimeout) DOM.cfgVideoInactivityTimeout.value = vid.inactivity_timeout_sec || 15;
+      if (DOM.cfgVideoMaxDuration) DOM.cfgVideoMaxDuration.value = vid.max_segment_duration_sec || 600;
+      if (DOM.cfgVideoFps) DOM.cfgVideoFps.value = vid.recording_fps || 10;
+      if (DOM.cfgVideoMaxExtracts) DOM.cfgVideoMaxExtracts.value = vid.max_extracted_frames || 6;
+      if (DOM.cfgVideoMinSharpness) DOM.cfgVideoMinSharpness.value = vid.min_sharpness || 35;
+
       // Query live thresholds from detection subsystem
       try {
         const dRes = await apiFetch('/api/detection/thresholds');
@@ -2133,6 +2534,14 @@
           storage: {
             retention_days: DOM.cfgRetentionDays ? parseInt(DOM.cfgRetentionDays.value) : 7,
             max_storage_mb: DOM.cfgStorageLimitMb ? parseInt(DOM.cfgStorageLimitMb.value) : 2048
+          },
+          video_recording: {
+            enabled: DOM.cfgVideoEnabled ? DOM.cfgVideoEnabled.checked : true,
+            inactivity_timeout_sec: DOM.cfgVideoInactivityTimeout ? parseFloat(DOM.cfgVideoInactivityTimeout.value) : 15.0,
+            max_segment_duration_sec: DOM.cfgVideoMaxDuration ? parseFloat(DOM.cfgVideoMaxDuration.value) : 600.0,
+            recording_fps: DOM.cfgVideoFps ? parseFloat(DOM.cfgVideoFps.value) : 10.0,
+            max_extracted_frames: DOM.cfgVideoMaxExtracts ? parseInt(DOM.cfgVideoMaxExtracts.value) : 6,
+            min_sharpness: DOM.cfgVideoMinSharpness ? parseFloat(DOM.cfgVideoMinSharpness.value) : 35.0
           }
         };
 
@@ -2269,6 +2678,7 @@
       if (type === 'detection' || type === 'detection_update' || type === 'alarm' || type === 'test') {
         dispatchBrowserNotification(type, data);
         fetchEvents();
+        pollStatus();
       } else if (type === 'thresholds_updated') {
         if (data.motion_threshold !== undefined) {
           if (DOM.detThresholdSlider) DOM.detThresholdSlider.value = data.motion_threshold;
@@ -2283,6 +2693,19 @@
         }
       } else if (type === 'event_completed') {
         fetchEvents();
+        pollStatus();
+      } else if (type === 'recording_started' || type === 'recording_stopped' || type === 'segment_rotated') {
+        pollStatus();
+      } else if (type === 'video_job_queued' || type === 'video_job_processing' || type === 'video_job_verifying') {
+        pollStatus();
+      } else if (type === 'video_job_completed') {
+        pollStatus();
+        fetchEvents();
+        if (state.activeEventData && state.activeEventData.id === data.event_id) {
+          inspectEvent(data.event_id);
+        }
+      } else if (type === 'video_job_failed') {
+        pollStatus();
       } else if (type === 'push_config') {
         fetchPushStatus();
       } else if (type === 'status' || type === 'telemetry') {
@@ -2300,7 +2723,7 @@
     };
 
     // Explicit listeners for SSE named event streams
-    ['detection', 'detection_update', 'event_completed', 'alarm', 'push_config', 'test', 'thresholds_updated'].forEach(evt => {
+    ['detection', 'detection_update', 'event_completed', 'alarm', 'push_config', 'test', 'thresholds_updated', 'recording_started', 'recording_stopped', 'segment_rotated', 'video_job_queued', 'video_job_processing', 'video_job_verifying', 'video_job_completed', 'video_job_failed', 'video_config_updated'].forEach(evt => {
       state.eventSource.addEventListener(evt, (e) => {
         try {
           const data = JSON.parse(e.data);
@@ -2462,6 +2885,7 @@
     window.PySurveillance = {
       inspectEvent,
       deleteEvent,
+      viewExtractLarge,
       navigateToView,
       dispatchBrowserNotification
     };

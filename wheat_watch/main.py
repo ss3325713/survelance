@@ -40,6 +40,7 @@ from wheat_watch.pipeline import pipeline
 from wheat_watch.power import power_manager
 from wheat_watch.security import hash_pin, rate_limiter, security_logger, session_manager, verify_pin_hash
 from wheat_watch.storage import storage_manager
+from wheat_watch.video_recording import video_job_store, video_processor, video_recorder
 
 # Configure logging
 logging.basicConfig(
@@ -202,9 +203,19 @@ class ConfigUpdateRequest(BaseModel):
     storage: Optional[Dict[str, Any]] = None
     flashlight: Optional[Dict[str, Any]] = None
     audio_detection: Optional[Dict[str, Any]] = None
+    video_recording: Optional[Dict[str, Any]] = None
 
     class Config:
         extra = "allow"
+
+
+class VideoConfigUpdateRequest(BaseModel):
+    enabled: Optional[bool] = None
+    inactivity_timeout_sec: Optional[float] = None
+    max_segment_duration_sec: Optional[float] = None
+    recording_fps: Optional[float] = None
+    max_extracted_frames: Optional[int] = None
+    min_sharpness: Optional[float] = None
 
 
 # --- API Endpoints ---
@@ -253,9 +264,12 @@ async def get_system_status():
     phone_url = f"http://{lan_ip}:{port}"
     laptop_url = f"http://127.0.0.1:{port}"
 
+    mon_status = pipeline.get_status()
     return {
         "status": "online",
-        "monitoring": pipeline.get_status(),
+        "monitoring": mon_status,
+        "live_detection": mon_status.get("live_detection", {}),
+        "video_recording": mon_status.get("video_recording", {}),
         "camera": camera_worker.get_status(),
         "metrics": metrics.get_system_stats(),
         "network": {
@@ -867,6 +881,80 @@ async def set_detection_thresholds(
     }
 
 
+# --- Video Recording & Background Queue Endpoints ---
+
+
+@app.get("/api/video/status")
+async def get_video_status():
+    """Real-time motion recording status, segment duration, inactivity timer, and background queue stats."""
+    return video_recorder.get_status()
+
+
+@app.get("/api/video/jobs")
+async def list_video_jobs(event_id: Optional[int] = None, limit: int = 50):
+    """Retrieve video processing jobs with optional filter by event ID."""
+    jobs = video_job_store.list_jobs(event_id=event_id, limit=limit)
+    stats = video_job_store.get_queue_stats()
+    return {
+        "success": True,
+        "jobs": jobs,
+        "stats": stats,
+    }
+
+
+@app.get("/api/video/jobs/{job_id}")
+async def get_video_job(job_id: int):
+    """Retrieve details and extracted images for a single video job."""
+    job = video_job_store.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Video job #{job_id} not found.")
+    return {"success": True, "job": job}
+
+
+@app.post("/api/video/jobs/{job_id}/retry")
+async def retry_video_job(job_id: int, auth: bool = Depends(verify_pin_auth)):
+    """Retry a failed video processing job if source video is still on disk."""
+    success = video_job_store.retry_job(job_id)
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot retry job #{job_id}. Source video file may be missing or unrecoverable.",
+        )
+    return {"success": True, "message": f"Video job #{job_id} re-queued for background processing."}
+
+
+@app.get("/api/video/config")
+async def get_video_config():
+    """Retrieve video recording and background processing configuration."""
+    return {"success": True, "config": app_config.video_recording}
+
+
+@app.post("/api/video/config")
+async def update_video_config(req: VideoConfigUpdateRequest, auth: bool = Depends(verify_pin_auth)):
+    """Update video recording timeouts, FPS, and frame extraction parameters."""
+    cur = dict(app_config.video_recording)
+    if req.enabled is not None:
+        cur["enabled"] = req.enabled
+    if req.inactivity_timeout_sec is not None:
+        cur["inactivity_timeout_sec"] = float(req.inactivity_timeout_sec)
+    if req.max_segment_duration_sec is not None:
+        cur["max_segment_duration_sec"] = float(req.max_segment_duration_sec)
+    if req.recording_fps is not None:
+        cur["recording_fps"] = float(req.recording_fps)
+    if req.max_extracted_frames is not None:
+        cur["max_extracted_frames"] = int(req.max_extracted_frames)
+    if req.min_sharpness is not None:
+        cur["min_sharpness"] = float(req.min_sharpness)
+
+    app_config.update({"video_recording": cur})
+    await broadcaster.broadcast("video_config_updated", cur)
+    return {
+        "success": True,
+        "message": "Video recording configuration updated.",
+        "config": cur,
+    }
+
+
 # --- Server-Sent Events (SSE) & Push Notification Endpoints ---
 
 
@@ -956,5 +1044,7 @@ async def on_startup():
 @app.on_event("shutdown")
 async def on_shutdown():
     logger.info("PySURVEILLANCE application shutting down gracefully...")
+    video_recorder.close_recording("shutdown")
     pipeline.stop_monitoring()
     microphone_detector.stop()
+    video_processor.stop()

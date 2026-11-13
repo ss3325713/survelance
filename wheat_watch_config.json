@@ -19,34 +19,34 @@
     "dashboard_pin": "****",
     "pin_required": true,
     "restrict_local_network": true,
-    "dashboard_pin_hash": "d75a9c3bfc2fdb02484d576949218ed2b744d00d26295b7bb858523da6e0f5a9",
-    "dashboard_pin_salt": "5bc6c31425c8f87cb2081641572c18b0"
+    "dashboard_pin_hash": "910fbb07b16fae1d2ddbd4fefe2ec784e4a97d590d815a8e6b44f6e0b99a18d7",
+    "dashboard_pin_salt": "740c90c711f4da446396bbcb79cd7b73"
   },
   "pipeline": {
-    "target_width": 1280,
-    "target_height": 720,
+    "target_width": 640,
+    "target_height": 480,
     "motion_fps": 8.0,
-    "motion_threshold": 35,
+    "motion_threshold": 59,
     "min_motion_area": 250,
     "max_motion_percent": 22.0,
     "require_motion_overlap": true,
     "ai_fps": 1.5,
-    "detection_confidence": 0.5,
+    "detection_confidence": 0.3,
     "auto_throttle_cpu": true,
     "cpu_throttle_threshold": 85.0,
     "monkey_model_path": "models/monkey_classifier.onnx",
-    "min_confidence": 0.5
+    "min_confidence": 0.3
   },
   "image_controls": {
-    "resolution": "1280x720",
-    "quality": 92,
+    "resolution": "640x480",
+    "quality": 54,
     "exposure_compensation": -2,
-    "gamma": 1.6,
+    "gamma": 1.55,
     "brightness": -15,
     "contrast": 1.15,
     "auto_hdr": false,
     "white_balance": "auto",
-    "torch": false,
+    "torch": true,
     "night_vision": false
   },
   "alarm": {
@@ -75,7 +75,7 @@
     "prevent_sleep": true
   },
   "push": {
-    "enabled": true,
+    "enabled": false,
     "browser_audio": true,
     "desktop_notifications": true,
     "push_on_general_motion": false,
@@ -94,7 +94,7 @@
     "auto_threshold": 45.0,
     "hysteresis": 8.0,
     "day": {
-      "motion_threshold": 35,
+      "motion_threshold": 59,
       "min_motion_area": 250,
       "max_motion_percent": 22.0,
       "light_change_threshold": 7.5,
@@ -142,5 +142,15 @@
     "consecutive_sustained_windows": 2,
     "noise_floor_alpha": 0.05,
     "activity_cooldown_sec": 1.0
+  },
+  "video_recording": {
+    "enabled": true,
+    "inactivity_timeout_sec": 15.0,
+    "max_segment_duration_sec": 60.0,
+    "recording_fps": 10.0,
+    "temp_storage_dir": "storage/temp_recordings",
+    "background_concurrency": 1,
+    "max_extracted_frames": 6,
+    "min_sharpness": 35.0
   }
 }

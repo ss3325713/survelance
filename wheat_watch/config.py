@@ -173,6 +173,17 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "noise_floor_alpha": 0.05,
         "activity_cooldown_sec": 1.0,
     },
+    # Motion-Triggered Video Recording & Background Incident Processing
+    "video_recording": {
+        "enabled": True,
+        "inactivity_timeout_sec": 15.0,
+        "max_segment_duration_sec": 60.0,
+        "recording_fps": 10.0,
+        "temp_storage_dir": "storage/temp_recordings",
+        "background_concurrency": 1,
+        "max_extracted_frames": 6,
+        "min_sharpness": 35.0,
+    },
 }
 
 
@@ -301,6 +312,10 @@ class Config:
     @property
     def audio_detection(self) -> Dict[str, Any]:
         return self._data.setdefault("audio_detection", dict(DEFAULT_CONFIG["audio_detection"]))
+
+    @property
+    def video_recording(self) -> Dict[str, Any]:
+        return self._data.setdefault("video_recording", dict(DEFAULT_CONFIG["video_recording"]))
 
     @property
     def camera_video_url(self) -> str:

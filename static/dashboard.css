@@ -2229,3 +2229,496 @@ a:hover {
     gap: 6px;
   }
 }
+
+/* ==========================================================================
+   Motion Video Recording & Queue Telemetry
+   ========================================================================== */
+.topbar-rec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #ef4444;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+  transition: all var(--transition-fast);
+}
+
+.topbar-rec-pill.hidden {
+  display: none !important;
+}
+
+.rec-dot-pulsing {
+  width: 8px;
+  height: 8px;
+  background-color: #ef4444;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #ef4444;
+  animation: rec-pulse 0.9s infinite alternate ease-in-out;
+}
+
+@keyframes rec-pulse {
+  0% { transform: scale(0.85); opacity: 0.35; }
+  100% { transform: scale(1.3); opacity: 1; }
+}
+
+.rec-title {
+  font-weight: 800;
+  color: #ef4444;
+}
+
+.rec-timer {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: #fca5a5;
+}
+
+/* Video Extracts in Forensic Modal */
+#videoExtractsContainer {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 12px;
+  background: #000;
+  border-radius: var(--radius-sm);
+}
+
+.video-extracts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.video-extract-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+}
+
+.video-extract-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.video-extract-thumb-box {
+  width: 100%;
+  height: 130px;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+
+.video-extract-thumb-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.extract-offset-tag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(4px);
+  color: #38bdf8;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.extract-sharpness-tag {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(4px);
+  color: #10b981;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.video-extract-info {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.video-extract-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.video-extract-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Live Detection HUD & Category Indicators
+   ========================================================================== */
+.topbar-detection-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  transition: all var(--transition-fast);
+}
+
+.topbar-detection-pill .detect-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+.topbar-detection-pill.state-clear {
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+.topbar-detection-pill.state-clear .detect-dot {
+  background-color: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+.topbar-detection-pill.state-motion {
+  background: rgba(234, 179, 8, 0.16);
+  border-color: rgba(234, 179, 8, 0.55);
+  color: #fde047;
+}
+.topbar-detection-pill.state-motion .detect-dot {
+  background-color: #eab308;
+  box-shadow: 0 0 8px #eab308;
+  animation: rec-pulse 0.8s infinite alternate ease-in-out;
+}
+
+.topbar-detection-pill.state-person {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.7);
+  color: #fca5a5;
+}
+.topbar-detection-pill.state-person .detect-dot {
+  background-color: #ef4444;
+  box-shadow: 0 0 10px #ef4444;
+  animation: rec-pulse 0.6s infinite alternate ease-in-out;
+}
+
+.topbar-detection-pill.state-animal,
+.topbar-detection-pill.state-monkey {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.7);
+  color: #fde68a;
+}
+.topbar-detection-pill.state-animal .detect-dot,
+.topbar-detection-pill.state-monkey .detect-dot {
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+  animation: rec-pulse 0.7s infinite alternate ease-in-out;
+}
+
+.topbar-detection-pill.state-bird {
+  background: rgba(14, 165, 233, 0.2);
+  border-color: rgba(14, 165, 233, 0.7);
+  color: #bae6fd;
+}
+.topbar-detection-pill.state-bird .detect-dot {
+  background-color: #0ea5e9;
+  box-shadow: 0 0 8px #0ea5e9;
+}
+
+.topbar-detection-pill.state-offline,
+.topbar-detection-pill.state-error {
+  background: rgba(100, 116, 139, 0.2);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #f87171;
+}
+.topbar-detection-pill.state-offline .detect-dot,
+.topbar-detection-pill.state-error .detect-dot {
+  background-color: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+}
+
+/* 8 States for Topbar Video Recording Badge */
+.topbar-rec-pill.state-idle {
+  background: rgba(100, 116, 139, 0.12);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+  box-shadow: none;
+}
+.topbar-rec-pill.state-idle .rec-dot-pulsing {
+  background-color: #64748b;
+  box-shadow: none;
+  animation: none;
+}
+.topbar-rec-pill.state-idle .rec-title {
+  color: #94a3b8;
+}
+
+.topbar-rec-pill.state-recording {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.75);
+  color: #ef4444;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.35);
+}
+.topbar-rec-pill.state-recording .rec-dot-pulsing {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+  animation: rec-pulse 0.8s infinite alternate ease-in-out;
+}
+.topbar-rec-pill.state-recording .rec-title {
+  color: #ef4444;
+}
+
+.topbar-rec-pill.state-finalizing {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.6);
+  color: #f59e0b;
+}
+.topbar-rec-pill.state-finalizing .rec-dot-pulsing {
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+.topbar-rec-pill.state-finalizing .rec-title {
+  color: #f59e0b;
+}
+
+.topbar-rec-pill.state-queued {
+  background: rgba(168, 85, 247, 0.18);
+  border-color: rgba(168, 85, 247, 0.6);
+  color: #c084fc;
+}
+.topbar-rec-pill.state-queued .rec-dot-pulsing {
+  background-color: #a855f7;
+  box-shadow: 0 0 8px #a855f7;
+}
+.topbar-rec-pill.state-queued .rec-title {
+  color: #c084fc;
+}
+
+.topbar-rec-pill.state-processing {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.7);
+  color: #60a5fa;
+}
+.topbar-rec-pill.state-processing .rec-dot-pulsing {
+  background-color: #3b82f6;
+  box-shadow: 0 0 8px #3b82f6;
+  animation: rec-pulse 0.9s infinite alternate ease-in-out;
+}
+.topbar-rec-pill.state-processing .rec-title {
+  color: #60a5fa;
+}
+
+.topbar-rec-pill.state-verifying {
+  background: rgba(6, 182, 212, 0.2);
+  border-color: rgba(6, 182, 212, 0.7);
+  color: #22d3ee;
+}
+.topbar-rec-pill.state-verifying .rec-dot-pulsing {
+  background-color: #06b6d4;
+  box-shadow: 0 0 8px #06b6d4;
+}
+.topbar-rec-pill.state-verifying .rec-title {
+  color: #22d3ee;
+}
+
+.topbar-rec-pill.state-completed {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.6);
+  color: #4ade80;
+}
+.topbar-rec-pill.state-completed .rec-dot-pulsing {
+  background-color: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+.topbar-rec-pill.state-completed .rec-title {
+  color: #4ade80;
+}
+
+.topbar-rec-pill.state-failed {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.8);
+  color: #f87171;
+}
+.topbar-rec-pill.state-failed .rec-dot-pulsing {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+.topbar-rec-pill.state-failed .rec-title {
+  color: #f87171;
+}
+
+/* Category Pills in Overview & Detection Center */
+.det-cat-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+}
+
+.det-cat-tag.active {
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+}
+
+#detCatMotion.active,
+#detCenterPillMotion.active {
+  background: rgba(234, 179, 8, 0.25);
+  border-color: #eab308;
+  color: #fde047;
+}
+
+#detCatPerson.active,
+#detCenterPillPerson.active {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+#detCatAnimal.active,
+#detCenterPillAnimal.active {
+  background: rgba(168, 85, 247, 0.3);
+  border-color: #a855f7;
+  color: #e9d5ff;
+}
+
+#detCatBird.active,
+#detCenterPillBird.active {
+  background: rgba(14, 165, 233, 0.3);
+  border-color: #0ea5e9;
+  color: #bae6fd;
+}
+
+#detCatMonkey.active,
+#detCenterPillMonkey.active {
+  background: rgba(245, 158, 11, 0.3);
+  border-color: #f59e0b;
+  color: #fde68a;
+}
+
+/* Floating Cinema Live Detection HUD */
+.cinema-detection-hud {
+  position: absolute;
+  top: 50px;
+  left: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.cinema-hud-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all var(--transition-fast);
+}
+
+.cinema-detect-dot,
+.cinema-rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cinema-hud-badge.state-clear {
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+.cinema-hud-badge.state-clear .cinema-detect-dot {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+.cinema-hud-badge.state-motion {
+  background: rgba(234, 179, 8, 0.85);
+  border-color: #eab308;
+  color: #000;
+}
+.cinema-hud-badge.state-motion .cinema-detect-dot {
+  background: #000;
+}
+
+.cinema-hud-badge.state-alert {
+  background: rgba(239, 68, 68, 0.9);
+  border-color: #ef4444;
+  color: #fff;
+  animation: rec-pulse 0.8s infinite alternate ease-in-out;
+}
+.cinema-hud-badge.state-alert .cinema-detect-dot {
+  background: #fff;
+}
+
+.cinema-hud-badge.state-idle {
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.25);
+}
+.cinema-hud-badge.state-idle .cinema-rec-dot {
+  background: #64748b;
+}
+
+.cinema-hud-badge.state-recording {
+  background: rgba(239, 68, 68, 0.9);
+  border-color: #ef4444;
+  color: #fff;
+}
+.cinema-hud-badge.state-recording .cinema-rec-dot {
+  background: #fff;
+  animation: rec-pulse 0.8s infinite alternate ease-in-out;
+}
+
+.cinema-hud-badge.state-processing {
+  background: rgba(59, 130, 246, 0.85);
+  border-color: #3b82f6;
+  color: #fff;
+}
+.cinema-hud-badge.state-processing .cinema-rec-dot {
+  background: #fff;
+}
+
+

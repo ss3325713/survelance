@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -59,6 +60,7 @@ class ObjectDetector:
         self.net: Optional[cv2.dnn.Net] = None
         self.monkey_net: Optional[cv2.dnn.Net] = None
         self.is_monkey_model_installed = False
+        self._lock = threading.Lock()
         self._load_models()
 
     def _load_models(self) -> None:
@@ -121,16 +123,21 @@ class ObjectDetector:
 
         h, w = frame.shape[:2]
 
-        # Prepare 640x640 letterbox or resize
-        blob = cv2.dnn.blobFromImage(
-            cv2.resize(frame, (640, 640)),
-            1.0 / 255.0,
-            (640, 640),
-            swapRB=True,
-            crop=False,
-        )
-        self.net.setInput(blob)
-        preds = self.net.forward()[0]  # shape (84, 8400)
+        with self._lock:
+            try:
+                # Prepare 640x640 letterbox or resize
+                blob = cv2.dnn.blobFromImage(
+                    cv2.resize(frame, (640, 640)),
+                    1.0 / 255.0,
+                    (640, 640),
+                    swapRB=True,
+                    crop=False,
+                )
+                self.net.setInput(blob)
+                preds = self.net.forward()[0]  # shape (84, 8400)
+            except Exception as e:
+                logger.error(f"DNN inference exception: {e}")
+                return []
 
         boxes = []
         confidences = []
@@ -289,5 +296,10 @@ class ObjectDetector:
         return annotated
 
 
-# Global detector instance
+# Global detector instance for real-time live surveillance pipeline
 detector = ObjectDetector()
+
+
+def create_detector(model_path: str = "models/yolov8n.onnx") -> ObjectDetector:
+    """Factory creating an independent ObjectDetector instance with isolated C++ DNN buffers."""
+    return ObjectDetector(model_path=model_path)
