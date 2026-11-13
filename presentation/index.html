@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PySURVEILLANCE — Live Presentation Slide Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-surface: #0e121b;
+      --bg-card: #151b28;
+      --accent-cyan: #00e5ff;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-crimson: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top presentation toolbar */
+    .pres-header {
+      height: 56px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-badge {
+      background: rgba(0, 229, 255, 0.12);
+      color: var(--accent-cyan);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      border: 1px solid rgba(0, 229, 255, 0.25);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .slide-counter {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .nav-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .nav-btn:active { transform: scale(0.97); }
+
+    /* Slide viewport */
+    .slide-viewport {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: hidden;
+    }
+
+    .slide {
+      position: absolute;
+      width: calc(100% - 48px);
+      max-width: 1400px;
+      height: calc(100% - 48px);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      display: none;
+      flex-direction: column;
+      padding: 32px 40px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      transform: scale(0.98);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .slide.active {
+      display: flex;
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .slide-header {
+      margin-bottom: 20px;
+    }
+
+    .slide-tag {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+      display: inline-block;
+    }
+
+    .slide-title {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .slide-subtitle {
+      font-size: 1rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .slide-content {
+      flex: 1;
+      display: flex;
+      gap: 32px;
+      min-height: 0;
+    }
+
+    .slide-image-col {
+      flex: 1.3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000000;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .slide-image-col img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+    }
+
+    .slide-text-col {
+      flex: 0.9;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 16px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 16px 20px;
+    }
+
+    .feature-card h4 {
+      font-size: 1.05rem;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .feature-card p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .badge-pill {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .badge-cyan { background: rgba(0, 229, 255, 0.15); color: var(--accent-cyan); }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+
+    /* Title slide layout */
+    .title-slide-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 24px;
+    }
+
+    .title-logo {
+      width: 72px;
+      height: 72px;
+      background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(16, 185, 129, 0.2));
+      border: 2px solid var(--accent-cyan);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+    }
+
+    .title-headline {
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-subheading {
+      font-size: 1.3rem;
+      color: var(--text-muted);
+      max-width: 780px;
+      line-height: 1.6;
+    }
+
+    .title-pill-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .title-pill {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+
+    /* Key indicator highlights */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .stat-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-subtle);
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .stat-val {
+      font-family: var(--font-mono);
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+
+    .stat-lbl {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 2px;
+    }
+
+    /* Progress bar */
+    .pres-progress {
+      height: 3px;
+      background: rgba(255, 255, 255, 0.06);
+      width: 100%;
+    }
+
+    .pres-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald));
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="pres-header">
+    <div class="brand">
+      <span>🛡️ PySURVEILLANCE</span>
+      <span class="brand-badge">SOC SLIDE DECK</span>
+    </div>
+    <div class="controls">
+      <span class="slide-counter" id="slideCounter">Slide 1 of 13</span>
+      <button class="nav-btn" id="prevBtn" title="Previous Slide (← / Up)">← Prev</button>
+      <button class="nav-btn" id="nextBtn" title="Next Slide (→ / Down / Space)">Next →</button>
+      <button class="nav-btn" id="fullBtn" title="Toggle Fullscreen (F)">⛶ Fullscreen</button>
+    </div>
+  </header>
+
+  <div class="pres-progress">
+    <div class="pres-progress-bar" id="progressBar"></div>
+  </div>
+
+  <main class="slide-viewport">
+
+    <!-- Slide 1: Title -->
+    <section class="slide active" data-slide="1">
+      <div class="title-slide-content">
+        <div class="title-logo">🛡️</div>
+        <h1 class="title-headline">PySURVEILLANCE</h1>
+        <p class="title-subheading">
+          Edge-First Intelligent Security, Perimeter Monitoring & Threat Deterrence Console
+        </p>
+        <div class="title-pill-row">
+          <span class="title-pill">⚡ YOLOv8n ONNX Engine</span>
+          <span class="title-pill">📹 Asynchronous Video Recording</span>
+          <span class="title-pill">🔍 Laplacian Sharpness Forensics</span>
+          <span class="title-pill">🔒 PBKDF2 Zero-Trust Auth</span>
+          <span class="title-pill">🌐 Hardware Independent</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 2: Main SOC Overview -->
+    <section class="slide" data-slide="2">
+      <div class="slide-header">
+        <span class="slide-tag">01 // COMMAND CONSOLE</span>
+        <h2 class="slide-title">Main Monitoring Dashboard (SOC Overview)</h2>
+        <p class="slide-subtitle">Centralized situational awareness across live video, hardware telemetry, and incident history.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/01_Main_Monitoring_Dashboard.png" alt="Main Monitoring Dashboard">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>🔴 Live Stream Preview</h4>
+            <p>Sub-50ms MJPEG/Canvas feed rendering with connection health and real-time framerate gauges.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🔋 Hardware & Battery Telemetry</h4>
+            <p>Streams phone battery level (88%), operating temperature (31.5°C), and power state directly from device sensors.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🎯 Active Detection Card</h4>
+            <p>Highlights current threat vectors, confidence scores, and multi-frame snapshot sequences.</p>
+          </div>
+          <div class="stat-row">
+            <div class="stat-box"><div class="stat-val">141</div><div class="stat-lbl">Today's Incidents</div></div>
+            <div class="stat-box"><div class="stat-val">10 FPS</div><div class="stat-lbl">Stream Rate</div></div>
+            <div class="stat-box"><div class="stat-val">88%</div><div class="stat-lbl">Phone Battery</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 3: Live Cinema Monitoring -->
+    <section class="slide" data-slide="3">
+      <div class="slide-header">
+        <span class="slide-tag">02 // CINEMA WORKSPACE</span>
+        <h2 class="slide-title">Live Cinema Monitoring & Telemetry HUD</h2>
+        <p class="slide-subtitle">Full-framerate monitoring workspace with non-intrusive target tracking and floating alerts.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/02_Live_Cinema_Monitoring.png" alt="Live Cinema Monitoring">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>🚨 Floating Threat Alerts</h4>
+            <p>Visual banner (<code>🚨 PERSON 83% DETECTED</code>) alerts operators instantly without blocking camera optics.</p>
+          </div>
+          <div class="feature-card">
+            <h4>● Recording HUD Indicator</h4>
+            <p>Dynamic status indicator tracks active recording duration, segment progression, and background worker queue.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🎛️ Software Tone Mapping</h4>
+            <p>Client-side gamma LUT (0.5 – 2.0), brightness, contrast, and auto-HDR compensation for high-contrast backlit scenes.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 4: Neural Detection & Target Tracker -->
+    <section class="slide" data-slide="4">
+      <div class="slide-header">
+        <span class="slide-tag">03 // NEURAL ENGINE</span>
+        <h2 class="slide-title">Detection & Classification Center</h2>
+        <p class="slide-subtitle">Synchronizing OpenCV MOG2 background subtraction with YOLOv8n ONNX deep learning.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/03_Detection_Classification_Center.png" alt="Detection & Classification Center">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>🎯 Real-Time Target Tracker</h4>
+            <p>Renders bounding boxes and category confidence metrics in real time over detected perimeter breaches.</p>
+          </div>
+          <div class="feature-card">
+            <h4>⚙️ Dynamic Sensitivity Controls</h4>
+            <p>Runtime sliders for MOG2 VarThreshold sensitivity and AI confidence cutoff (default 45%).</p>
+          </div>
+          <div class="feature-card">
+            <h4>🛡️ Classification Ethics Policy</h4>
+            <p>Facial recognition strictly disabled. Untrusted animals report as <em>"Animal detected — species unconfirmed"</em>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 5: Recording Status & Segment Management -->
+    <section class="slide" data-slide="5">
+      <div class="slide-header">
+        <span class="slide-tag">04 // RECORDING LIFECYCLE</span>
+        <h2 class="slide-title">Motion-Triggered Video Recording</h2>
+        <p class="slide-subtitle">Immediate motion capture with 15s inactivity reset and 60s maximum segment rotation.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/04_Recording_Status_HUD.png" alt="Recording Status & HUD">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>⚡ Zero-Delay Trigger</h4>
+            <p>Starts recording immediately on camera motion; never waits for neural inference before saving video.</p>
+          </div>
+          <div class="feature-card">
+            <h4>⏳ 15s Inactivity Reset</h4>
+            <p>If motion pauses and resumes within 15 seconds, video capture continues in the same recording segment.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🔄 60s Segment Rollover</h4>
+            <p>Long continuous events safely split into 60s segments linked to the same parent session without frame loss.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 6: Incident History Timeline -->
+    <section class="slide" data-slide="6">
+      <div class="slide-header">
+        <span class="slide-tag">05 // INCIDENT FORENSICS</span>
+        <h2 class="slide-title">Chronological Event Timeline</h2>
+        <p class="slide-subtitle">Multi-frame event persistence with deduplicated sessions and acoustic correlation.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/05_Event_Timeline_Records.png" alt="Event Timeline Records">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>📸 Three-Stage Frame Capture</h4>
+            <p>Captures Initial Trigger, Peak Motion Change, and Final Concluding frame for every incident.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🔎 Search & Category Filter</h4>
+            <p>Instant filtering by threat category (Person, Animal, Bird, Monkey, Unknown object) and confidence.</p>
+          </div>
+          <div class="feature-card">
+            <h4>💾 Zero-Cloud SQLite Retention</h4>
+            <p>Point-in-time hot backups and automated rolling disk quotas protect active ongoing sessions.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 7: Incident Gallery Grid -->
+    <section class="slide" data-slide="7">
+      <div class="slide-header">
+        <span class="slide-tag">06 // EVIDENCE SCREENING</span>
+        <h2 class="slide-title">Visual Incident Evidence Gallery</h2>
+        <p class="slide-subtitle">High-density snapshot grid for rapid investigative pattern screening and review.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/06_Incident_Gallery_Grid.png" alt="Incident Gallery Grid">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>🖼️ Visual Evidence Cards</h4>
+            <p>High-resolution thumbnails tagged with detection timestamps, classification badges, and confidence metrics.</p>
+          </div>
+          <div class="feature-card">
+            <h4>⬇️ Direct Full-Res JPEG Export</h4>
+            <p>One-click download of forensically tagged frames with embedded metadata.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🔍 Instant Modal Inspection</h4>
+            <p>Click any thumbnail to launch the side-by-side forensic multi-frame inspector.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 8: Forensic Multi-Frame Comparison -->
+    <section class="slide" data-slide="8">
+      <div class="slide-header">
+        <span class="slide-tag">07 // KEYFRAME EXTRACTION</span>
+        <h2 class="slide-title">Forensic Inspection & Laplacian Extraction</h2>
+        <p class="slide-subtitle">Decoupled background worker extracts representative keyframes scored by Laplacian variance.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/07_Extracted_Forensic_Images.png" alt="Extracted Forensic Images">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>📐 Laplacian Variance Scoring</h4>
+            <p>Calculates variance of the Laplacian (<code>σ²(∇²I)</code>) to reject motion-blurred frames and select sharpest keyframes.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🔄 Asynchronous Background Worker</h4>
+            <p>Worker processes queued video segments (<code>QUEUED ➔ PROCESSING ➔ COMPLETED</code>) without impacting live surveillance.</p>
+          </div>
+          <div class="feature-card">
+            <h4>📑 Multi-Frame Verification</h4>
+            <p>Side-by-side visual analysis of Initial, Peak Change, Final, and sharpest video extractions.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 9: Acoustic Intelligence & Microphone -->
+    <section class="slide" data-slide="9">
+      <div class="slide-header">
+        <span class="slide-tag">08 // AUDIO INTELLIGENCE</span>
+        <h2 class="slide-title">Phone Microphone Telemetry & RMS Waveforms</h2>
+        <p class="slide-subtitle">Isolated network audio capture with dynamic ambient noise-floor adaptation.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/08_Acoustic_Intelligence_Audio.png" alt="Acoustic Intelligence & Audio">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>🎙️ Exclusive Camera Stream Audio</h4>
+            <p>Captures uncompressed HTTP linear PCM/WAV directly from phone camera; strictly excludes laptop microphone.</p>
+          </div>
+          <div class="feature-card">
+            <h4>📊 Dynamic Noise Floor Alpha</h4>
+            <p>Continuous alpha filter tracks ambient room noise and computes real-time Signal-to-Noise Ratio (SNR).</p>
+          </div>
+          <div class="feature-card">
+            <h4>🔒 Audio Privacy Preservation</h4>
+            <p>Processes audio strictly in-memory for acoustic spikes; zero continuous voice recordings are written to disk.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 10: Hardware Lighting Automation -->
+    <section class="slide" data-slide="10">
+      <div class="slide-header">
+        <span class="slide-tag">09 // LIGHTING AUTOMATION</span>
+        <h2 class="slide-title">Hardware-Adaptive Flashlight Automation</h2>
+        <p class="slide-subtitle">Darkness-aware illumination triggered exclusively by camera motion with daylight suppression.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/09_Hardware_Automation_Lighting.png" alt="Hardware Automation & Lighting">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>🌙 Low-Light Motion Trigger</h4>
+            <p>Activates phone camera LED torch or external lighting only when qualifying motion occurs in darkness (&lt; 45 lux).</p>
+          </div>
+          <div class="feature-card">
+            <h4>☀️ Daylight Suppression</h4>
+            <p>Motion during bright conditions does NOT activate torch, saving device battery and preventing glare.</p>
+          </div>
+          <div class="feature-card">
+            <h4>⏱️ 15s Continuous-Motion Reset</h4>
+            <p>Torch remains active while motion continues and cleanly turns off 15s after motion stops.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 11: Notification Center & Sirens -->
+    <section class="slide" data-slide="11">
+      <div class="slide-header">
+        <span class="slide-tag">10 // ALERTS & DETERRENCE</span>
+        <h2 class="slide-title">Device Notifications & Acoustic Deterrence</h2>
+        <p class="slide-subtitle">Instant push alerts with snapshot thumbnails and host-side acoustic deterrence sirens.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/10_Notification_Interface.png" alt="Notification Interface">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>🔔 Native Browser & Mobile Push</h4>
+            <p>Dispatches instant notifications with threat snapshot thumbnails directly to operator devices via Service Workers.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🔊 Host Laptop Speaker Siren</h4>
+            <p>Plays synthesized deterrent sirens via <code>paplay</code> / <code>aplay</code> upon verified Person or Animal incursions.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🛡️ Category Alarm Cooldowns</h4>
+            <p>Enforces category cooldown intervals (30s Person, 20s Animal) to eliminate alarm fatigue.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 12: Diagnostics & System Analytics -->
+    <section class="slide" data-slide="12">
+      <div class="slide-header">
+        <span class="slide-tag">11 // SYSTEM TELEMETRY</span>
+        <h2 class="slide-title">System Diagnostics & Hardware Telemetry</h2>
+        <p class="slide-subtitle">Resource-conscious performance benchmarking on low-power edge machines.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/11_System_Diagnostics_Telemetry.png" alt="System Diagnostics & Telemetry">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>📈 FPS Telemetry</h4>
+            <p>Continuous tracking of camera stream framerate (10-15 FPS) vs neural inference rate (1.5 FPS event-triggered).</p>
+          </div>
+          <div class="feature-card">
+            <h4>💻 CPU & Memory Telemetry</h4>
+            <p>Tracks system CPU% and process RSS memory with automated neural throttling when CPU exceeds 85%.</p>
+          </div>
+          <div class="feature-card">
+            <h4>💽 Disk Quotas & Hot Backups</h4>
+            <p>Automated rolling cleanup enforces storage quotas (2048 MB) and generates hot SQLite database backups.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 13: Security & Access Control -->
+    <section class="slide" data-slide="13">
+      <div class="slide-header">
+        <span class="slide-tag">12 // ZERO-TRUST SECURITY</span>
+        <h2 class="slide-title">Cryptographic Security & LAN Firewall</h2>
+        <p class="slide-subtitle">Zero default backdoors, PBKDF2 salted authentication, and private network isolation.</p>
+      </div>
+      <div class="slide-content">
+        <div class="slide-image-col">
+          <img src="assets/13_Security_Access_Control.png" alt="Security & Access Control">
+        </div>
+        <div class="slide-text-col">
+          <div class="feature-card">
+            <h4>🔑 Salted PBKDF2-HMAC-SHA256</h4>
+            <p>Master PIN hashed with 100,000 rounds and random 16-byte salt; plaintext credentials are never written to disk.</p>
+          </div>
+          <div class="feature-card">
+            <h4>🛑 Brute-Force Rate Limiting</h4>
+            <p>5 consecutive failed PIN attempts trigger an automatic 300-second IP lockout (HTTP 429).</p>
+          </div>
+          <div class="feature-card">
+            <h4>🛡️ RFC 1918 Private Firewall</h4>
+            <p>Rejects public internet requests by default (HTTP 403), permitting only private LAN subnets and loopback.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const fullBtn = document.getElementById('fullBtn');
+    const slideCounter = document.getElementById('slideCounter');
+    const progressBar = document.getElementById('progressBar');
+    let currentIdx = 0;
+
+    function showSlide(idx) {
+      if (idx < 0) idx = 0;
+      if (idx >= slides.length) idx = slides.length - 1;
+      currentIdx = idx;
+
+      slides.forEach((s, i) => {
+        s.classList.toggle('active', i === currentIdx);
+      });
+
+      slideCounter.textContent = `Slide ${currentIdx + 1} of ${slides.length}`;
+      progressBar.style.width = `${((currentIdx + 1) / slides.length) * 100}%`;
+    }
+
+    prevBtn.addEventListener('click', () => showSlide(currentIdx - 1));
+    nextBtn.addEventListener('click', () => showSlide(currentIdx + 1));
+
+    fullBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        showSlide(currentIdx + 1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        showSlide(currentIdx - 1);
+      } else if (e.key === 'f' || e.key === 'F') {
+        fullBtn.click();
+      } else if (e.key === 'Home') {
+        showSlide(0);
+      } else if (e.key === 'End') {
+        showSlide(slides.length - 1);
+      }
+    });
+
+    showSlide(0);
+  </script>
+</body>
+</html>
