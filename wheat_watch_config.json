@@ -46,7 +46,7 @@
     "contrast": 1.15,
     "auto_hdr": false,
     "white_balance": "auto",
-    "torch": false,
+    "torch": true,
     "night_vision": false
   },
   "alarm": {
@@ -90,7 +90,7 @@
     ]
   },
   "night_mode": {
-    "mode": "auto",
+    "mode": "on",
     "auto_threshold": 45.0,
     "hysteresis": 8.0,
     "day": {

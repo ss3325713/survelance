@@ -3,892 +3,927 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>PySURVEILLANCE — Intelligent Security & Field Defense Console</title>
+  <title>PySURVEILLANCE — Security Operations Center</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/dashboard.css">
 </head>
-<body>
+<body class="soc-theme">
 
-  <!-- Top Navigation Header -->
-  <header class="navbar">
-    <div class="nav-brand">
-      <div class="brand-logo brand-logo-svg">
-        <svg width="24" height="24" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M32 4 L54 12 C54 36 32 58 32 60 C32 58 10 36 10 12 Z" fill="#0f172a" stroke="#3b82f6" stroke-width="3" stroke-linejoin="round"/>
-          <circle cx="32" cy="28" r="12" stroke="#06b6d4" stroke-width="2" stroke-dasharray="3,2"/>
-          <circle cx="32" cy="28" r="7" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
-          <circle cx="32" cy="28" r="3" fill="#38bdf8"/>
-          <circle cx="44" cy="16" r="3" fill="#10b981"/>
-        </svg>
-      </div>
-      <div class="brand-title">
-        <h1>PySURVEILLANCE</h1>
-        <span class="brand-subtitle">INTELLIGENT DEFENSE CONSOLE</span>
-      </div>
-    </div>
+  <div class="soc-app-container">
 
-    <!-- Live Status Indicators -->
-    <div class="nav-status-bar">
-      <!-- Surveillance Mode Toggle -->
-      <button id="navSurveillanceBtn" class="btn btn-surveillance-toggle active" title="Toggle Surveillance Monitoring Mode">
-        <span class="pill-dot"></span>
-        <span id="navSurveillanceText">SURVEILLANCE: ON</span>
-      </button>
-
-      <!-- Night Mode Quick Selector -->
-      <div class="night-mode-pill-group">
-        <span class="night-label">🌙 Night:</span>
-        <div class="btn-group-segmented">
-          <button id="btnNightDay" class="btn-seg-option" data-mode="off" title="Force Daytime Mode">☀️ Day</button>
-          <button id="btnNightNight" class="btn-seg-option" data-mode="on" title="Force Night Mode">🌙 Night</button>
-          <button id="btnNightAuto" class="btn-seg-option active" data-mode="auto" title="Adaptive Ambient Lux Mode">⚡ Auto</button>
+    <!-- LEFT SIDEBAR: Primary Navigation -->
+    <aside class="soc-sidebar" id="socSidebar">
+      <!-- Brand & Console Title -->
+      <div class="soc-brand">
+        <div class="brand-symbol">
+          <svg width="26" height="26" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M32 4 L54 12 C54 36 32 58 32 60 C32 58 10 36 10 12 Z" fill="#0c1322" stroke="#3b82f6" stroke-width="3" stroke-linejoin="round"/>
+            <circle cx="32" cy="28" r="13" stroke="#06b6d4" stroke-width="2" stroke-dasharray="3,2"/>
+            <circle cx="32" cy="28" r="7" fill="#17223b" stroke="#3b82f6" stroke-width="2"/>
+            <circle cx="32" cy="28" r="3" fill="#38bdf8"/>
+            <circle cx="44" cy="16" r="3" fill="#10b981"/>
+          </svg>
         </div>
-        <span id="nightActiveIndicator" class="night-indicator-badge">Auto (Day)</span>
+        <div class="brand-text">
+          <span class="brand-title">PySURVEILLANCE</span>
+          <span class="brand-badge">SOC CONSOLE v2.0</span>
+        </div>
+        <button id="sidebarCollapseBtn" class="sidebar-toggle-btn" title="Toggle Sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
       </div>
 
-      <!-- Monitoring Uptime -->
-      <div id="uptimePill" class="status-pill pill-uptime" title="Surveillance Monitoring Uptime">
-        <span>⏱️ <strong id="uptimeText">00:00:00</strong></span>
+      <!-- Navigation Menu -->
+      <nav class="soc-nav">
+        <div class="nav-group-label">MONITORING</div>
+        <ul class="nav-list">
+          <li>
+            <a href="#overview" class="nav-item active" data-view="overview">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+              <span class="nav-label">Overview</span>
+            </a>
+          </li>
+          <li>
+            <a href="#monitoring" class="nav-item" data-view="monitoring">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span>
+              <span class="nav-label">Live Monitoring</span>
+              <span class="nav-tag tag-live" id="sidebarLiveTag">LIVE</span>
+            </a>
+          </li>
+          <li>
+            <a href="#detection" class="nav-item" data-view="detection">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="3" stroke="#f59e0b"/></svg></span>
+              <span class="nav-label">Detection Center</span>
+            </a>
+          </li>
+          <li>
+            <a href="#incidents" class="nav-item" data-view="incidents">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+              <span class="nav-label">Incident History</span>
+              <span class="nav-count" id="sidebarIncidentCount">0</span>
+            </a>
+          </li>
+        </ul>
+
+        <div class="nav-group-label">SENSORS & AUTOMATION</div>
+        <ul class="nav-list">
+          <li>
+            <a href="#audio" class="nav-item" data-view="audio">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></span>
+              <span class="nav-label">Phone Audio</span>
+              <span class="nav-dot" id="sidebarAudioDot" title="Audio Status"></span>
+            </a>
+          </li>
+          <li>
+            <a href="#automation" class="nav-item" data-view="automation">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+              <span class="nav-label">Flashlight Automation</span>
+            </a>
+          </li>
+          <li>
+            <a href="#analytics" class="nav-item" data-view="analytics">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+              <span class="nav-label">System Analytics</span>
+            </a>
+          </li>
+        </ul>
+
+        <div class="nav-group-label">GOVERNANCE & CONTROL</div>
+        <ul class="nav-list">
+          <li>
+            <a href="#security" class="nav-item" data-view="security">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <span class="nav-label">Security & Access</span>
+            </a>
+          </li>
+          <li>
+            <a href="#settings" class="nav-item" data-view="settings">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+              <span class="nav-label">Settings</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Sidebar Footer Status -->
+      <div class="soc-sidebar-footer">
+        <div class="host-badge">
+          <span class="host-dot"></span>
+          <div class="host-info">
+            <span class="host-name">HP EliteBook 745</span>
+            <span class="host-status" id="sidebarHostStatus">Linux Mint • Sleep Inhibited</span>
+          </div>
+        </div>
+        <button id="sidebarPinBtn" class="pin-quick-btn" title="Unlock / Lock PIN Protected Operations">
+          🔒 <span id="sidebarPinText">PIN: Locked</span>
+        </button>
       </div>
+    </aside>
 
-      <!-- Camera Connection Status -->
-      <div id="cameraPill" class="status-pill pill-warning" title="Redmi 10 Camera Stream Status">
-        <span class="pill-dot"></span>
-        <span id="cameraPillText">CAMERA: CONNECTING</span>
-      </div>
+    <!-- MAIN OPERATIONS WORKSPACE -->
+    <div class="soc-workspace">
 
-      <!-- Phone Audio Status -->
-      <div id="micPill" class="status-pill pill-danger" title="Redmi 10 Smartphone Audio Stream (Laptop Mic Fallback Prohibited)">
-        <span class="pill-dot"></span>
-        <span id="micPillText">PHONE AUDIO: DISCONNECTED</span>
-      </div>
+      <!-- TOP BAR: Breadcrumbs, Global State, Subsystem Health & Actions -->
+      <header class="soc-topbar">
+        <div class="topbar-left">
+          <button id="mobileMenuBtn" class="mobile-menu-btn" title="Open Navigation Menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="breadcrumb-trail">
+            <span class="crumb-root">PySURVEILLANCE</span>
+            <span class="crumb-separator">/</span>
+            <h1 class="crumb-active" id="currentViewTitle">Overview</h1>
+          </div>
+        </div>
 
-      <!-- Database Health -->
-      <div id="dbPill" class="status-pill pill-info" title="SQLite Incident History Database">
-        <span>💾 <strong id="dbStatusText">DB: HEALTHY</strong></span>
-      </div>
+        <div class="topbar-center">
+          <!-- Master Surveillance Mode Switch -->
+          <button id="masterSurveillanceBtn" class="btn-master-toggle active" title="Toggle Surveillance Monitoring Pipeline">
+            <span class="pulse-indicator"></span>
+            <span id="masterSurveillanceLabel">SURVEILLANCE: ARMED</span>
+          </button>
 
-      <div id="sleepPill" class="status-pill pill-info" title="System Power Inhibitor Status">
-        <span>⚡ SLEEP INHIBITED</span>
-      </div>
-    </div>
+          <!-- Day / Night Profile Selector -->
+          <div class="mode-segmented-bar">
+            <button id="btnNightDay" class="seg-btn" data-mode="off" title="Force Daytime Mode">☀️ Day</button>
+            <button id="btnNightNight" class="seg-btn" data-mode="on" title="Force Night Mode">🌙 Night</button>
+            <button id="btnNightAuto" class="seg-btn active" data-mode="auto" title="Adaptive Ambient Lux Mode">⚡ Auto</button>
+          </div>
 
-    <!-- Quick Action / Menu -->
-    <div class="nav-actions">
-      <button id="togglePushNavBtn" class="btn btn-push-toggle active" title="Toggle Force Push Messages to this Browser">
-        <span class="push-bell">🔔</span>
-        <span id="pushNavLabel">Push: ON</span>
-      </button>
-      <button id="diagnosticsBtn" class="btn btn-secondary btn-sm" title="Open Real-time System Diagnostics">
-        🩺 Diagnostics
-      </button>
-      <button id="qrBtn" class="btn btn-secondary btn-sm" title="Scan QR to open on Phone">
-        📱 Phone Link
-      </button>
-      <button id="settingsBtn" class="btn btn-secondary btn-sm" title="System Settings">
-        ⚙️ Settings
-      </button>
-      <button id="pinBtn" class="btn btn-outline btn-sm" title="Dashboard PIN">
-        🔒 PIN <span id="pinStatusText">(Locked)</span>
-      </button>
-    </div>
-  </header>
+          <!-- Uptime Badge -->
+          <div class="topbar-pill" title="Continuous Surveillance Uptime">
+            ⏱️ <span id="uptimeText">00:00:00</span>
+          </div>
+        </div>
 
-  <!-- Network Access Banner -->
-  <div class="network-banner">
-    <div class="network-info">
-      <span class="net-icon">🌐</span>
-      <span><strong>Laptop LAN IP:</strong> <code id="laptopLanIp">Loading...</code></span>
-      <span class="sep">|</span>
-      <span><strong>Phone Dashboard URL:</strong> <a id="phoneUrlLink" href="#" target="_blank"><code id="phoneUrlText">Loading...</code></a></span>
-    </div>
-    <div class="net-actions">
-      <button id="copyUrlBtn" class="btn-link">📋 Copy URL</button>
+        <div class="topbar-right">
+          <!-- Hardware Subsystem Health Pills -->
+          <div id="cameraPill" class="soc-pill pill-warning" title="Redmi 10 Camera Connection">
+            <span class="pill-dot"></span>
+            <span id="cameraPillText">CAM: CONNECTING</span>
+          </div>
+
+          <div id="micPill" class="soc-pill pill-danger" title="Redmi 10 Phone Microphone Audio Stream">
+            <span class="pill-dot"></span>
+            <span id="micPillText">MIC: DISCONNECTED</span>
+          </div>
+
+          <div id="dbPill" class="soc-pill pill-info" title="SQLite Incident History Store">
+            <span>💾 <strong id="dbStatusText">DB: HEALTHY</strong></span>
+          </div>
+
+          <!-- Quick Action Buttons -->
+          <div class="topbar-actions">
+            <button id="togglePushNavBtn" class="icon-btn active" title="Toggle Push Alerts to Browser">🔔</button>
+            <button id="qrBtn" class="icon-btn" title="Open Mobile QR Code">📱</button>
+            <button id="testAlarmBtn" class="icon-btn" title="Sound Laptop Test Alarm">🔊</button>
+            <button id="fullscreenBtn" class="icon-btn" title="Toggle Fullscreen Workspace">⛶</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- VIEW CONTAINER: Dynamic Single Page App Views -->
+      <main class="soc-content" id="socContent">
+
+        <!-- =================================================================
+             VIEW 1: OVERVIEW & SYSTEM STATUS
+             ================================================================= -->
+        <section class="soc-view active" id="view-overview">
+          <div class="view-header">
+            <div>
+              <h2>Command & Overview</h2>
+              <p class="view-subtitle">High-level surveillance operations, active detection status, and telemetry snapshot.</p>
+            </div>
+            <div class="view-header-actions">
+              <button id="overviewRefreshBtn" class="btn btn-outline btn-sm">↺ Refresh Status</button>
+            </div>
+          </div>
+
+          <!-- 4 Stat Summary Cards -->
+          <div class="stat-cards-grid">
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-label">TODAY'S INCIDENTS</span>
+                <span class="stat-badge badge-primary" id="todayIncidentsBadge">0 Recorded</span>
+              </div>
+              <div class="stat-value" id="todayEventsCount">0</div>
+              <div class="stat-meta">Last incident: <span id="lastDetectionTimeText">None</span></div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-label">REDMI 10 CAMERA</span>
+                <span class="stat-badge" id="overviewCamBadge">CONNECTING</span>
+              </div>
+              <div class="stat-value" id="overviewFpsValue">-- FPS</div>
+              <div class="stat-meta" id="overviewCamMeta">Target: http://192.168.31.211:8080/video</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-label">PHONE MICROPHONE</span>
+                <span class="stat-badge" id="overviewMicBadge">DISCONNECTED</span>
+              </div>
+              <div class="stat-value" id="overviewMicRms">0.0 RMS</div>
+              <div class="stat-meta">Source: Redmi 10 (/audio.wav)</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-label">HARDWARE TORCH</span>
+                <span class="stat-badge" id="overviewFlashBadge">AUTO [OFF]</span>
+              </div>
+              <div class="stat-value" id="overviewFlashTrigger">CAMERA</div>
+              <div class="stat-meta">Inactivity Timeout: 15.0s</div>
+            </div>
+          </div>
+
+          <!-- Overview Layout: Live Preview & Recent Activity Split -->
+          <div class="overview-grid">
+            <!-- Left: Quick Stream Box -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Live Camera Feed Preview</h3>
+                <a href="#monitoring" class="panel-action-link">Open Full Monitor →</a>
+              </div>
+              <div class="overview-video-box">
+                <img id="overviewStreamImg" src="/api/stream/live" alt="PySURVEILLANCE Stream">
+                <div class="overview-stream-hud">
+                  <span class="hud-pill" id="overviewHudFps">-- FPS</span>
+                  <span class="hud-pill" id="overviewHudRes">1280x720</span>
+                </div>
+              </div>
+              <div class="overview-controls-bar">
+                <button id="overviewStartBtn" class="btn btn-primary btn-sm">▶ Start Pipeline</button>
+                <button id="overviewStopBtn" class="btn btn-danger btn-sm">⏹ Stop Pipeline</button>
+                <button id="overviewSnapshotBtn" class="btn btn-secondary btn-sm">📸 Snapshot</button>
+                <button id="overviewTestPushBtn" class="btn btn-outline btn-sm">🔔 Test Push</button>
+              </div>
+            </div>
+
+            <!-- Right: Latest Incident & Activity Stream -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Latest Incident Detection</h3>
+                <span id="latestEventCategoryBadge" class="badge">Awaiting Motion</span>
+              </div>
+              <div class="latest-incident-card">
+                <div class="incident-preview-container">
+                  <img id="latestEventImg" src="/static/favicon.svg" alt="Latest Event">
+                  <span class="incident-tag-pill" id="latestEventTagBadge">SNAPSHOT</span>
+                </div>
+                <div class="incident-details">
+                  <div class="detail-row"><span class="lbl">Classification:</span> <strong id="latestEventLabelText">None detected</strong></div>
+                  <div class="detail-row"><span class="lbl">Confidence:</span> <strong id="latestEventConfidence">--%</strong></div>
+                  <div class="detail-row"><span class="lbl">Timestamp:</span> <span id="latestEventTimeBadge">--:--:--</span></div>
+                  <div class="detail-row"><span class="lbl">Age:</span> <span id="latestEventAgeText">--</span></div>
+                  <button id="viewLatestEventBtn" class="btn btn-outline btn-sm mt-2">🔍 Inspect Incident Details</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =================================================================
+             VIEW 2: LIVE MONITORING (PROMINENT CAMERA PRESENTATION)
+             ================================================================= -->
+        <section class="soc-view" id="view-monitoring">
+          <div class="live-monitor-container">
+
+            <!-- Primary Large Screen Video Monitor -->
+            <div class="cinema-screen" id="cinemaScreen">
+              <!-- Live Video Element -->
+              <img id="liveStreamImg" src="/api/stream/live" alt="PySURVEILLANCE Live Monitor">
+              <canvas id="liveCanvas" style="display: none; width: 100%; height: 100%; object-fit: contain;"></canvas>
+
+              <!-- Floating Live HUD Overlay -->
+              <div class="cinema-hud-top">
+                <div class="hud-group">
+                  <span class="hud-status-dot active"></span>
+                  <span class="hud-title">REDMI 10 — FIELD CAM #1</span>
+                  <span class="hud-badge" id="hudModeBadge">DAY PROFILE</span>
+                </div>
+                <div class="hud-group">
+                  <span class="hud-metric" id="telemetryFps">Cam: -- FPS</span>
+                  <span class="hud-metric" id="telemetryProcFps">Proc: -- FPS</span>
+                  <span class="hud-metric" id="telemetryLatency">Ping: -- ms</span>
+                  <span class="hud-metric" id="liveResBadge">1280x720</span>
+                </div>
+              </div>
+
+              <!-- Stream Disconnect Alert Banner inside Monitor -->
+              <div id="cameraDisconnectBanner" class="cinema-alert-banner" style="display: none;">
+                <span>⚠️ CAMERA DISCONNECTED — Auto-reconnecting in background...</span>
+                <button id="bannerRetryCamBtn" class="btn btn-warning btn-sm">⚡ Reconnect</button>
+              </div>
+
+              <!-- Cinema Bottom Controls Strip -->
+              <div class="cinema-hud-bottom">
+                <div class="hud-controls-left">
+                  <div class="stream-tab-pills">
+                    <button id="modeMjpegBtn" class="stream-pill active">🔴 MJPEG</button>
+                    <button id="modeCanvasBtn" class="stream-pill">⚡ Canvas Safe</button>
+                    <a id="modeDirectPhoneLink" href="http://192.168.31.211:8080/video" target="_blank" class="stream-pill">📱 Direct Phone</a>
+                  </div>
+                </div>
+                <div class="hud-controls-right">
+                  <button id="snapshotBtn" class="btn-hud-action" title="Capture Incident Snapshot">📸 Snapshot</button>
+                  <button id="toggleCinemaFullscreenBtn" class="btn-hud-action" title="Fullscreen Monitor">⛶ Fullscreen</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dedicated Camera Controls Console (Spacious side/bottom panel) -->
+            <div class="camera-controls-console">
+              <div class="console-header">
+                <h3>📹 Camera Hardware & Exposure Console</h3>
+                <button id="resetControlsBtn" class="btn btn-outline btn-sm">↺ Reset Defaults</button>
+              </div>
+
+              <div class="console-grid">
+                <!-- Quality & Exposure Sliders -->
+                <div class="console-card">
+                  <h4>Optical & Stream Parameters</h4>
+                  <div class="param-row">
+                    <label>Stream Quality (<span id="sliderQualityVal">95%</span>)</label>
+                    <input type="range" id="sliderQuality" class="slider" min="50" max="100" value="95">
+                  </div>
+                  <div class="param-row">
+                    <label>Exposure Compensation (<span id="sliderExposureVal">-2</span>)</label>
+                    <input type="range" id="sliderExposure" class="slider" min="-4" max="4" value="-2">
+                  </div>
+                  <div class="param-row">
+                    <label>Gamma LUT (<span id="sliderGammaVal">0.75x</span>)</label>
+                    <input type="range" id="sliderGamma" class="slider" min="0.40" max="1.60" value="0.75" step="0.05">
+                  </div>
+                </div>
+
+                <!-- Tone Mapping Sliders -->
+                <div class="console-card">
+                  <h4>Software Tone Mapping</h4>
+                  <div class="param-row">
+                    <label>Brightness Shift (<span id="sliderBrightnessVal">-15</span>)</label>
+                    <input type="range" id="sliderBrightness" class="slider" min="-50" max="50" value="-15">
+                  </div>
+                  <div class="param-row">
+                    <label>Contrast Contrast (<span id="sliderContrastVal">1.15x</span>)</label>
+                    <input type="range" id="sliderContrast" class="slider" min="0.70" max="1.80" value="1.15" step="0.05">
+                  </div>
+                  <div class="param-row">
+                    <label>White Balance Mode</label>
+                    <select id="selectWhiteBalance" class="soc-select">
+                      <option value="auto">Auto Balance</option>
+                      <option value="daylight">Daylight</option>
+                      <option value="incandescent">Incandescent</option>
+                      <option value="fluorescent">Fluorescent</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Hardware Action Toggles -->
+                <div class="console-card">
+                  <h4>Hardware Switch Controls</h4>
+                  <div class="hardware-buttons-grid">
+                    <button id="toggleHdrBtn" class="btn btn-outline btn-sm">Auto-HDR: OFF</button>
+                    <button id="toggleTorchBtn" class="btn btn-outline btn-sm">🔦 Torch: OFF</button>
+                    <button id="toggleNightBtn" class="btn btn-outline btn-sm">🌙 Night Vision: OFF</button>
+                    <button id="testCamBtn" class="btn btn-outline btn-sm">📡 Probe Camera</button>
+                  </div>
+                  <div class="network-quick-info mt-2">
+                    <span>Phone IP: <code>192.168.31.211:8080</code></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- =================================================================
+             VIEW 3: DETECTION CENTER
+             ================================================================= -->
+        <section class="soc-view" id="view-detection">
+          <div class="view-header">
+            <div>
+              <h2>Detection & Classification Center</h2>
+              <p class="view-subtitle">MOG2 visual background subtractor, spatial motion mask verification, and YOLOv8n ONNX inference.</p>
+            </div>
+          </div>
+
+          <div class="detection-dashboard-grid">
+            <!-- Detection Telemetry Card -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Motion Subsystem Telemetry</h3>
+                <span class="badge badge-success">MOG2 Active</span>
+              </div>
+              <div class="panel-body">
+                <div class="detection-telemetry-row">
+                  <div class="tel-item"><span class="lbl">Active Profile:</span> <strong id="detActiveProfile">Day</strong></div>
+                  <div class="tel-item"><span class="lbl">Motion Area Threshold:</span> <strong id="detMinArea">250 px²</strong></div>
+                  <div class="tel-item"><span class="lbl">Sensitivity Threshold:</span> <strong id="detMotionThresh">25</strong></div>
+                  <div class="tel-item"><span class="lbl">Ambient Brightness:</span> <strong id="detMeasuredLux">80.0 lux</strong></div>
+                </div>
+                <div class="motion-mask-info mt-3">
+                  <h4>Spatial Motion Verification</h4>
+                  <p class="text-sub">Every candidate object detection box is cross-referenced with the binary MOG2 motion mask. Static objects (chairs, trees, parked vehicles) are rejected, ensuring alerts trigger only on actively moving targets.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Classification Model Card -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Neural Classification Engine</h3>
+                <span class="badge badge-primary">YOLOv8n ONNX</span>
+              </div>
+              <div class="panel-body">
+                <div class="model-info-box">
+                  <div class="detail-row"><span class="lbl">Architecture:</span> <strong>YOLOv8 Nano (OpenCV DNN C++)</strong></div>
+                  <div class="detail-row"><span class="lbl">Weight File:</span> <code>models/yolov8n.onnx (12.1 MB)</code></div>
+                  <div class="detail-row"><span class="lbl">Inference Rate:</span> <strong>1.5 FPS (Event Triggered)</strong></div>
+                  <div class="detail-row"><span class="lbl">Confidence Threshold:</span> <strong>45% (Configurable)</strong></div>
+                </div>
+
+                <!-- Ethical Safeguard Notice -->
+                <div class="ethical-alert-box mt-3">
+                  <strong>⚠️ Classification Ethics Policy Active:</strong>
+                  <ul>
+                    <li>Facial recognition is strictly disabled; individual identities are never recorded.</li>
+                    <li>Standard COCO models cannot verify monkey species. Untrusted animal detections report strictly as <em>"Animal detected — species unconfirmed"</em>.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =================================================================
+             VIEW 4: INCIDENT HISTORY & GALLERY
+             ================================================================= -->
+        <section class="soc-view" id="view-incidents">
+          <div class="view-header">
+            <div>
+              <h2>Incident History & Forensic Log</h2>
+              <p class="view-subtitle">Chronological event timeline, multi-frame grouped sessions (Initial, Change, Final), and snapshot gallery.</p>
+            </div>
+            <div class="incident-toolbar">
+              <!-- Timeline vs Gallery View Toggle -->
+              <div class="view-mode-tabs">
+                <button id="viewTabTimeline" class="mode-tab active">📜 Timeline</button>
+                <button id="viewTabGallery" class="mode-tab">🖼️ Gallery</button>
+              </div>
+              <button id="clearEventsBtn" class="btn btn-outline btn-danger btn-sm">🗑️ Purge Log</button>
+            </div>
+          </div>
+
+          <!-- Category Filter Bar -->
+          <div class="category-filters-bar">
+            <button class="cat-pill active" data-category="all">All Events (<span id="countAll">0</span>)</button>
+            <button class="cat-pill" data-category="Person">👤 Person (<span id="countPerson">0</span>)</button>
+            <button class="cat-pill" data-category="Bird">🦅 Bird (<span id="countBird">0</span>)</button>
+            <button class="cat-pill" data-category="Animal">🐾 Animals (<span id="countAnimal">0</span>)</button>
+            <button class="cat-pill" data-category="Monkey">🐒 Monkey (<span id="countMonkey">0</span>)</button>
+            <button class="cat-pill" data-category="Motion">⚡ Motion (<span id="countMotion">0</span>)</button>
+          </div>
+
+          <!-- Incident Stream Container -->
+          <div id="eventsList" class="incident-stream timeline-layout">
+            <div class="empty-state">Loading surveillance incidents...</div>
+          </div>
+        </section>
+
+        <!-- =================================================================
+             VIEW 5: PHONE AUDIO MONITORING
+             ================================================================= -->
+        <section class="soc-view" id="view-audio">
+          <div class="view-header">
+            <div>
+              <h2>Redmi 10 Smartphone Audio Monitor</h2>
+              <p class="view-subtitle">Live linear PCM audio streaming exclusively from the phone microphone. Host laptop microphone is prohibited.</p>
+            </div>
+            <div class="view-header-actions">
+              <button id="testAudioBtn" class="btn btn-primary btn-sm">🔊 Test Audio Trigger</button>
+            </div>
+          </div>
+
+          <div class="audio-dashboard-grid">
+            <!-- Audio Meter Visualizer Card -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Live Audio Level Meter</h3>
+                <span id="audioStateBadge" class="badge badge-danger">DISCONNECTED</span>
+              </div>
+              <div class="panel-body">
+                <div class="audio-stream-source-tag">
+                  Stream URL: <code id="audioStreamUrlText">http://192.168.31.211:8080/audio.wav</code>
+                </div>
+
+                <!-- Responsive Level Bar -->
+                <div class="audio-reactive-meter">
+                  <div class="meter-bar-track">
+                    <div id="audioMeterFill" class="meter-bar-fill" style="width: 0%;"></div>
+                  </div>
+                  <div class="meter-scale">
+                    <span>0 RMS</span>
+                    <span>1800 (Trigger)</span>
+                    <span>3500 (High)</span>
+                    <span>6000+ (Spike)</span>
+                  </div>
+                </div>
+
+                <!-- Real-Time Metrics -->
+                <div class="audio-metrics-grid mt-3">
+                  <div class="meter-stat-card">
+                    <span class="lbl">CURRENT SIGNAL</span>
+                    <strong id="audioRmsText">0.0 RMS</strong>
+                  </div>
+                  <div class="meter-stat-card">
+                    <span class="lbl">AMBIENT NOISE FLOOR (EMA)</span>
+                    <strong id="audioNoiseFloorText">1200.0</strong>
+                  </div>
+                  <div class="meter-stat-card">
+                    <span class="lbl">SIGNAL-TO-NOISE RATIO</span>
+                    <strong id="audioSnrText">1.00x</strong>
+                  </div>
+                  <div class="meter-stat-card">
+                    <span class="lbl">STREAM FORMAT</span>
+                    <strong id="audioFormatText">44.1kHz 16-bit Mono</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Strict Source Policy Guard Card -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Audio Hardware Governance</h3>
+                <span class="badge badge-success">Policy Enforced</span>
+              </div>
+              <div class="panel-body">
+                <div class="policy-card-content">
+                  <p><strong>Strict Sensor Routing Policy:</strong></p>
+                  <ul>
+                    <li>The Redmi 10 smartphone is the exclusive audio source for PySURVEILLANCE.</li>
+                    <li>The host laptop microphone is <strong>never selected</strong> or used as a fallback.</li>
+                    <li>Browser <code>getUserMedia()</code> is prohibited.</li>
+                    <li>Zero persistent audio recordings are created or stored on disk (energy calculations are purely in-memory).</li>
+                    <li>Audio activity does <strong>NOT</strong> independently trigger the flashlight.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =================================================================
+             VIEW 6: AUTOMATION CENTER (FLASHLIGHT & TIMEOUTS)
+             ================================================================= -->
+        <section class="soc-view" id="view-automation">
+          <div class="view-header">
+            <div>
+              <h2>Intelligent Flashlight Automation</h2>
+              <p class="view-subtitle">Redmi 10 hardware LED torch automation driven by visual motion in darkness with 15-second timeout.</p>
+            </div>
+            <span id="flashlightStatusPill" class="badge">AUTO [OFF]</span>
+          </div>
+
+          <div class="automation-dashboard-grid">
+            <!-- Flashlight Control Panel -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Hardware Torch Control</h3>
+                <span id="flashlightLightingText" class="badge">Lighting: BRIGHT</span>
+              </div>
+              <div class="panel-body">
+                <!-- Mode Segmented Switch -->
+                <div class="automation-mode-switcher">
+                  <button id="btnFlashlightAuto" class="auto-mode-btn active" title="Automatic Sensor Decision">⚡ AUTO (Motion in Dark)</button>
+                  <button id="btnFlashlightManual" class="auto-mode-btn" title="Force Torch ON">💡 FORCE ON</button>
+                  <button id="btnFlashlightOff" class="auto-mode-btn" title="Force Torch OFF">⚫ FORCE OFF</button>
+                </div>
+
+                <!-- 15-Second Inactivity Countdown Progress Bar -->
+                <div class="inactivity-countdown-box mt-3">
+                  <div class="countdown-header">
+                    <span>15-Second Inactivity Auto-OFF Countdown:</span>
+                    <strong id="flashlightCountdownText">15.0s</strong>
+                  </div>
+                  <div class="countdown-track">
+                    <div id="flashlightCountdownFill" class="countdown-fill" style="width: 0%;"></div>
+                  </div>
+                  <span class="text-sub" style="font-size: 0.72rem;">Continuous motion actively resets the 15-second countdown timer.</span>
+                </div>
+
+                <!-- Telemetry Row -->
+                <div class="automation-stat-row mt-3">
+                  <div>Motion State: <strong id="flashlightMotionText">CLEAR</strong></div>
+                  <div>Active Trigger: <strong id="flashlightTriggerText">None</strong></div>
+                  <div>Software Requested: <strong id="flashlightRequestedText">OFF</strong></div>
+                  <div>Hardware Command: <strong id="flashlightResultText">IDLE</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Automation Event Audit Log -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Automation Audit Log</h3>
+                <span class="text-sub" style="font-size: 0.75rem;">Last 20 State Transitions</span>
+              </div>
+              <div class="panel-body">
+                <div class="automation-table-container">
+                  <table class="soc-table">
+                    <thead>
+                      <tr><th>Time</th><th>Action</th><th>Details</th><th>Result</th></tr>
+                    </thead>
+                    <tbody id="flashlightLogTableBody">
+                      <tr><td colspan="4" class="text-center text-sub">No automation transitions recorded yet.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =================================================================
+             VIEW 7: SYSTEM ANALYTICS
+             ================================================================= -->
+        <section class="soc-view" id="view-analytics">
+          <div class="view-header">
+            <div>
+              <h2>System Analytics & Host Performance</h2>
+              <p class="view-subtitle">HP EliteBook 745 G2 hardware resource utilization, SQLite database metrics, and storage retention.</p>
+            </div>
+            <div class="view-header-actions">
+              <button id="analyticsBackupBtn" class="btn btn-primary btn-sm">💾 Create Hot DB Backup</button>
+              <button id="analyticsPurgeBtn" class="btn btn-outline btn-sm">🧹 Run Retention Cleanup</button>
+            </div>
+          </div>
+
+          <div class="analytics-grid">
+            <!-- CPU & RAM utilization -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Processor & Memory Footprint</h3></div>
+              <div class="panel-body">
+                <div class="resource-bar-row">
+                  <div class="res-label"><span>Host CPU Load</span><strong id="metricCpu">0%</strong></div>
+                  <div class="res-track"><div id="metricCpuBar" class="res-fill" style="width: 0%;"></div></div>
+                </div>
+                <div class="resource-bar-row mt-2">
+                  <div class="res-label"><span>Host Memory (RAM)</span><strong id="metricRam">0% (<span id="metricRamMb">0 MB</span>)</strong></div>
+                  <div class="res-track"><div id="metricRamBar" class="res-fill" style="width: 0%;"></div></div>
+                </div>
+                <div class="throttle-box mt-3">
+                  <span>Dynamic CPU Auto-Throttling:</span>
+                  <strong id="throttleStatus">Active (Throttle > 85%)</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Storage & Database Card -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Storage & Database Status</h3></div>
+              <div class="panel-body">
+                <div class="detail-row"><span class="lbl">SQLite Database:</span> <code>storage/events.db</code></div>
+                <div class="detail-row"><span class="lbl">Total Incident Records:</span> <strong id="analyticsDbRows">0</strong></div>
+                <div class="detail-row"><span class="lbl">Stored JPEG Snapshots:</span> <strong id="storageImageCount">0</strong></div>
+                <div class="detail-row"><span class="lbl">Storage Consumption:</span> <strong id="storageUsedMbText">0 MB</strong></div>
+                <div class="res-track mt-2"><div id="storageBar" class="res-fill" style="width: 0%;"></div></div>
+                <div class="detail-row mt-2"><span class="lbl">Storage Quota:</span> <span id="storagePercentBadge">0% of 2048 MB</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =================================================================
+             VIEW 8: SECURITY & ACCESS
+             ================================================================= -->
+        <section class="soc-view" id="view-security">
+          <div class="view-header">
+            <div>
+              <h2>Security Operations & Remote Access</h2>
+              <p class="view-subtitle">PBKDF2 PIN authentication, session expiration, brute-force firewall, and remote VPN setup.</p>
+            </div>
+            <button id="securityLogoutBtn" class="btn btn-outline btn-danger btn-sm">🚪 Logout Session</button>
+          </div>
+
+          <div class="security-grid">
+            <!-- Auth & Firewall Status -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Firewall & Cryptographic Authentication</h3></div>
+              <div class="panel-body">
+                <div class="detail-row"><span class="lbl">PIN Storage Scheme:</span> <span class="badge badge-success">PBKDF2-HMAC-SHA256 (100k rounds)</span></div>
+                <div class="detail-row"><span class="lbl">Brute-Force Protection:</span> <strong>5 Attempts → 5-Min Lockout (429)</strong></div>
+                <div class="detail-row"><span class="lbl">Session Lifetime:</span> <strong>24 Hours (Automatic Invalidation)</strong></div>
+                <div class="detail-row"><span class="lbl">Local LAN Enforcement:</span> <span class="badge badge-success">Active (Non-LAN IPs Blocked)</span></div>
+                <div class="detail-row"><span class="lbl">Public Router Ports:</span> <strong>Zero Ports Exposed Directly</strong></div>
+              </div>
+            </div>
+
+            <!-- Tailscale & WireGuard Remote Access Guidance -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Encrypted Remote Access (Tailscale / WireGuard)</h3></div>
+              <div class="panel-body">
+                <p class="text-sub">PySURVEILLANCE strictly prevents exposing port 8000 or 8080 to the public internet. Use an encrypted mesh overlay to access your console remotely:</p>
+                <div class="code-step-box mt-2">
+                  <strong>Option A: Tailscale (Recommended)</strong>
+                  <pre class="code-block">curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up</pre>
+                  <span class="text-sub">Connect phone to Tailscale and open: <code>http://100.x.y.z:8000</code></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =================================================================
+             VIEW 9: SETTINGS
+             ================================================================= -->
+        <section class="soc-view" id="view-settings">
+          <div class="view-header">
+            <div>
+              <h2>System Configuration</h2>
+              <p class="view-subtitle">Fine-tune camera connection endpoints, detection parameters, alarms, and storage retention.</p>
+            </div>
+            <button id="saveGlobalSettingsBtn" class="btn btn-primary">💾 Save All Settings</button>
+          </div>
+
+          <div class="settings-sections-container">
+            <!-- Camera & Endpoints -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Camera & Sensor Endpoints</h3></div>
+              <div class="panel-body">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Phone IPv4 Address</label>
+                    <input type="text" id="cfgPhoneIp" class="soc-input" value="192.168.31.211">
+                  </div>
+                  <div class="form-group">
+                    <label>Camera Port</label>
+                    <input type="number" id="cfgPhonePort" class="soc-input" value="8080">
+                  </div>
+                </div>
+                <div class="form-row mt-2">
+                  <div class="form-group">
+                    <label>Video Stream Endpoint</label>
+                    <input type="text" id="cfgVideoEp" class="soc-input" value="/video">
+                  </div>
+                  <div class="form-group">
+                    <label>Snapshot Endpoint</label>
+                    <input type="text" id="cfgSnapshotEp" class="soc-input" value="/shot.jpg">
+                  </div>
+                  <div class="form-group">
+                    <label>Audio Stream Endpoint</label>
+                    <input type="text" id="cfgAudioEp" class="soc-input" value="/audio.wav">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detection Sensitivity -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Detection & Performance Targets</h3></div>
+              <div class="panel-body">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Motion Processing FPS</label>
+                    <input type="number" id="cfgMotionFps" class="soc-input" value="8" step="0.5">
+                  </div>
+                  <div class="form-group">
+                    <label>AI Inference FPS</label>
+                    <input type="number" id="cfgAiFps" class="soc-input" value="1.5" step="0.1">
+                  </div>
+                  <div class="form-group">
+                    <label>Motion Threshold (VarThreshold)</label>
+                    <input type="number" id="cfgMotionThresh" class="soc-input" value="25">
+                  </div>
+                  <div class="form-group">
+                    <label>AI Confidence Cutoff</label>
+                    <input type="number" id="cfgConfidence" class="soc-input" value="0.45" step="0.05">
+                  </div>
+                </div>
+                <div class="form-checkbox mt-2">
+                  <input type="checkbox" id="cfgAutoThrottle" checked>
+                  <label for="cfgAutoThrottle">Automatically reduce processing intervals if CPU > 85%</label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Laptop Audio Alarm -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Laptop Alarm Deterrence</h3></div>
+              <div class="panel-body">
+                <div class="form-checkbox">
+                  <input type="checkbox" id="cfgSoundEnabled" checked>
+                  <label for="cfgSoundEnabled">Enable Laptop-Side Audio Alarms (paplay/aplay)</label>
+                </div>
+                <div class="form-row mt-2">
+                  <div class="form-group"><label>Person Cooldown (s)</label><input type="number" id="cfgCdPerson" class="soc-input" value="15"></div>
+                  <div class="form-group"><label>Animal Cooldown (s)</label><input type="number" id="cfgCdAnimal" class="soc-input" value="20"></div>
+                  <div class="form-group"><label>Motion Cooldown (s)</label><input type="number" id="cfgCdMotion" class="soc-input" value="30"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Security & Password PIN -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Security Credentials</h3></div>
+              <div class="panel-body">
+                <div class="form-group">
+                  <label>Update Dashboard PIN</label>
+                  <input type="password" id="cfgNewPin" class="soc-input" placeholder="Leave blank to keep current PIN">
+                  <span class="text-sub" style="font-size: 0.72rem;">PIN is automatically hashed with salted PBKDF2.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
     </div>
   </div>
 
-  <!-- Camera Disconnection Alert Warning Banner -->
-  <div id="cameraDisconnectBanner" class="camera-disconnect-banner" style="display: none;">
-    <div class="banner-inner">
-      <span class="banner-icon">⚠️</span>
-      <span id="cameraDisconnectText" class="banner-text"><strong>CAMERA DISCONNECTED:</strong> Real-time stream lost. Auto-reconnecting in background...</span>
-      <button id="bannerRetryCamBtn" class="btn btn-warning btn-sm">⚡ Force Reconnect</button>
-    </div>
-  </div>
+  <!-- =================================================================
+       MODALS: QR Code, PIN Authentication, Event Inspection
+       ================================================================= -->
 
-  <!-- Main Container -->
-  <main class="dashboard-grid">
-
-    <!-- Left Column: Video Stream & Live Controls -->
-    <section class="stream-panel card">
-      <div class="card-header">
-        <div class="card-title">
-          <span class="live-tag">LIVE FEED</span>
-          <h2>Redmi 10 Stream Preview</h2>
-        </div>
-        <!-- Stream Mode Switcher -->
-        <div class="stream-mode-tabs">
-          <button id="modeMjpegBtn" class="stream-tab active" title="Multiplexed MJPEG stream">🔴 MJPEG Stream</button>
-          <button id="modeCanvasBtn" class="stream-tab" title="Direct high-speed Canvas snapshot (Brave/Chrome safe)">⚡ Fast Refresh</button>
-          <a id="modeDirectPhoneLink" href="http://192.168.31.211:8080/video" target="_blank" class="stream-tab" title="Direct raw connection to Redmi 10">📱 Direct Phone</a>
-        </div>
-        <div class="stream-telemetry">
-          <span class="badge" id="telemetryFps">Cam: -- FPS</span>
-          <span class="badge" id="telemetryProcFps">Proc: -- FPS</span>
-          <span class="badge" id="telemetryLatency">Ping: -- ms</span>
-        </div>
+  <!-- QR Code Modal -->
+  <div id="qrModal" class="soc-modal">
+    <div class="soc-modal-box">
+      <div class="soc-modal-header">
+        <h3>📱 Mobile Connection QR Code</h3>
+        <button class="modal-close-btn" data-close="qrModal">&times;</button>
       </div>
-
-      <!-- Video Feed Container -->
-      <div class="video-container" id="videoBox">
-        <img id="liveStreamImg" src="/api/stream/live" alt="PySURVEILLANCE Live MJPEG Stream">
-        <canvas id="liveCanvas" style="display: none; width: 100%; height: 100%; object-fit: contain;"></canvas>
-        <div id="streamOverlay" class="stream-overlay">
-          <div class="overlay-box" id="overlayCategory">MONITORING ACTIVE</div>
-          <div class="overlay-box" id="overlayTimestamp">--:--:--</div>
+      <div class="soc-modal-body text-center">
+        <p class="text-sub">Scan with Redmi 10 or any phone on the local Wi-Fi network:</p>
+        <div id="qrCodeContainer" class="qr-code-img mt-2"></div>
+        <div class="phone-url-display mt-2">
+          <a id="phoneUrlLink" href="#" target="_blank"><code id="phoneUrlText">Loading...</code></a>
+          <button id="copyUrlBtn" class="btn btn-outline btn-sm ml-2">📋 Copy</button>
         </div>
-      </div>
-
-      <!-- Live Image Quality & Exposure Controls -->
-      <div class="image-controls-panel">
-        <div class="controls-panel-header">
-          <span class="panel-icon">🎛️</span>
-          <h3>Live Image Quality & Exposure Controls</h3>
-          <span class="panel-badge" id="liveResBadge">720p HD</span>
-        </div>
-
-        <div class="image-controls-grid">
-          <!-- Resolution Selector -->
-          <div class="control-box">
-            <label>Camera Resolution</label>
-            <div class="btn-group-toggle">
-              <button class="btn-toggle-option" data-res="640x480">480p SD</button>
-              <button class="btn-toggle-option active" data-res="1280x720">720p HD</button>
-              <button class="btn-toggle-option" data-res="1920x1080">1080p FHD</button>
-            </div>
-          </div>
-
-          <!-- Quality Slider -->
-          <div class="control-box">
-            <div class="slider-header">
-              <label for="sliderQuality">Stream Quality</label>
-              <span id="sliderQualityVal" class="slider-badge">95%</span>
-            </div>
-            <input type="range" id="sliderQuality" class="slider-range" min="50" max="100" value="95" step="1">
-          </div>
-
-          <!-- Anti-Overexposure / Gamma Slider -->
-          <div class="control-box">
-            <div class="slider-header">
-              <label for="sliderGamma">☀️ Anti-Overexposure / Glare Cut</label>
-              <span id="sliderGammaVal" class="slider-badge">0.75x</span>
-            </div>
-            <input type="range" id="sliderGamma" class="slider-range" min="0.40" max="1.50" value="0.75" step="0.05">
-            <div class="slider-subtext">Lower values cut blown-out highlights and fix overexposure</div>
-          </div>
-
-          <!-- Brightness Slider -->
-          <div class="control-box">
-            <div class="slider-header">
-              <label for="sliderBrightness">💡 Brightness</label>
-              <span id="sliderBrightnessVal" class="slider-badge">-15</span>
-            </div>
-            <input type="range" id="sliderBrightness" class="slider-range" min="-60" max="60" value="-15" step="5">
-          </div>
-
-          <!-- Contrast Slider -->
-          <div class="control-box">
-            <div class="slider-header">
-              <label for="sliderContrast">🌓 Contrast</label>
-              <span id="sliderContrastVal" class="slider-badge">1.15x</span>
-            </div>
-            <input type="range" id="sliderContrast" class="slider-range" min="0.70" max="1.80" value="1.15" step="0.05">
-          </div>
-
-          <!-- Quick Hardware Action Toggles -->
-          <div class="control-box hardware-toggles-box">
-            <label>Hardware Camera Controls</label>
-            <div class="quick-toggle-row">
-              <button id="toggleHdrBtn" class="btn btn-outline btn-sm">Auto-HDR: OFF</button>
-              <button id="toggleTorchBtn" class="btn btn-outline btn-sm">🔦 Torch: OFF</button>
-              <button id="toggleNightBtn" class="btn btn-outline btn-sm">🌙 Night Vision: OFF</button>
-              <button id="resetControlsBtn" class="btn btn-outline btn-sm text-sub">↺ Reset</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Dedicated Card: Flashlight Automation -->
-      <div class="card" style="margin-top: 1rem;">
-        <div class="card-header" style="padding-bottom: 0.5rem;">
-          <div class="card-title">
-            <span class="live-tag" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; border-color: #eab308;">HARDWARE LED</span>
-            <h3>🔦 Flashlight Automation</h3>
-          </div>
-          <span id="flashlightStatusPill" class="badge">AUTO [OFF]</span>
-        </div>
-        <div class="card-body" style="padding: 0.75rem 1rem;">
-          <!-- Mode Selector -->
-          <div class="btn-segmented" style="display: flex; gap: 0.35rem; margin-bottom: 0.75rem;">
-            <button id="btnFlashlightAuto" class="btn-seg-option active" style="flex: 1;" title="Triggered by Camera Motion in Darkness with 15s Timeout">⚡ Auto (Motion)</button>
-            <button id="btnFlashlightManual" class="btn-seg-option" style="flex: 1;" title="Manual Force ON (Temporary Override)">💡 Force ON</button>
-            <button id="btnFlashlightOff" class="btn-seg-option" style="flex: 1;" title="Force OFF (Automation Disabled)">⚫ Force OFF</button>
-          </div>
-
-          <!-- 15-Second Inactivity Countdown Progress Bar -->
-          <div style="margin-bottom: 0.6rem;">
-            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.2rem;">
-              <span class="text-sub">Inactivity Timeout (15s):</span>
-              <strong id="flashlightCountdownText">15.0s</strong>
-            </div>
-            <div class="countdown-bar">
-              <div id="flashlightCountdownFill" class="countdown-fill" style="width: 0%;"></div>
-            </div>
-          </div>
-
-          <!-- Telemetry Grid -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.78rem; margin-bottom: 0.6rem;">
-            <div>Lighting: <strong id="flashlightLightingText">BRIGHT</strong></div>
-            <div>Motion: <strong id="flashlightMotionText">CLEAR</strong></div>
-            <div>Trigger: <strong id="flashlightTriggerText">None</strong></div>
-            <div>Requested: <strong id="flashlightRequestedText">OFF</strong></div>
-            <div style="grid-column: span 2;">Result: <strong id="flashlightResultText">IDLE</strong></div>
-          </div>
-
-          <!-- Collapsible Event Log Drawer -->
-          <div class="event-log-drawer">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">Automation History</span>
-              <button id="toggleFlashlightLogBtn" class="btn btn-outline btn-sm" style="font-size: 0.7rem; padding: 0.15rem 0.5rem;">📜 Toggle History</button>
-            </div>
-            <div id="flashlightLogContainer" style="display: none; max-height: 140px; overflow-y: auto; margin-top: 0.4rem;">
-              <table class="event-log-table">
-                <thead>
-                  <tr><th>Time</th><th>Action</th><th>Trigger</th><th>Result</th></tr>
-                </thead>
-                <tbody id="flashlightLogTableBody">
-                  <tr><td colspan="4" class="text-sub" style="text-align: center;">No automation events recorded yet.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Dedicated Card: Phone Audio Monitoring -->
-      <div class="card" style="margin-top: 1rem;">
-        <div class="card-header" style="padding-bottom: 0.5rem;">
-          <div class="card-title">
-            <span class="live-tag" style="background: rgba(6, 182, 212, 0.2); color: #38bdf8; border-color: #06b6d4;">PHONE SENSOR</span>
-            <h3>🎙️ Redmi 10 Audio Monitor</h3>
-          </div>
-          <span id="audioStateBadge" class="badge badge-danger">DISCONNECTED</span>
-        </div>
-        <div class="card-body" style="padding: 0.75rem 1rem;">
-          <div style="font-size: 0.75rem; color: var(--text-sub); margin-bottom: 0.4rem;">
-            Source: <strong style="color: var(--text-main);">Redmi 10 Smartphone (IP Webcam)</strong>
-            <span class="badge badge-success" style="font-size: 0.65rem; margin-left: 0.4rem;">Laptop Mic Prohibited</span>
-          </div>
-
-          <!-- Real-Time Audio Signal RMS Meter Bar -->
-          <div style="margin-bottom: 0.6rem;">
-            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.2rem;">
-              <span>Signal Level: <strong id="audioRmsText">0.0 RMS</strong></span>
-              <span id="audioStatusText" class="badge">Silent</span>
-            </div>
-            <div class="audio-meter-bar">
-              <div id="audioMeterFill" class="audio-meter-fill" style="width: 0%;"></div>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-sub);">
-              <span>Floor: <strong id="audioNoiseFloorText">1200.0</strong></span>
-              <span>SNR: <strong id="audioSnrText">1.00x</strong></span>
-              <span>Rate: <strong id="audioFormatText">16kHz Mono</strong></span>
-            </div>
-          </div>
-
-          <!-- Stream Endpoint & Action Row -->
-          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.4rem; border-top: 1px solid rgba(255, 255, 255, 0.05);">
-            <div class="text-mono" id="audioStreamUrlText" style="color: var(--text-sub); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; max-width: 65%;">
-              http://192.168.31.211:8080/audio.wav
-            </div>
-            <button id="testAudioBtn" class="btn btn-outline btn-sm" style="font-size: 0.7rem;">🔊 Test Trigger</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Action Control Bar -->
-      <div class="control-bar">
-        <button id="toggleMonitoringBtn" class="btn btn-danger">
-          🛑 Stop Monitoring
-        </button>
-        <button id="testAlarmBtn" class="btn btn-warning">
-          🔊 Test Laptop Alarm
-        </button>
-        <button id="testPushBtn" class="btn btn-info" title="Send a test push message to this browser">
-          🔔 Test Push
-        </button>
-        <button id="testCamBtn" class="btn btn-secondary">
-          📹 Test Camera
-        </button>
-        <button id="snapshotBtn" class="btn btn-secondary">
-          📸 Snapshot
-        </button>
-      </div>
-
-      <!-- Policy Notice -->
-      <div class="policy-notice">
-        <strong>⚠️ Classification Policy:</strong> Standard COCO models cannot verify monkeys. Untrusted animal detections report as <em>"Animal detected — species unconfirmed"</em>. Facial recognition is strictly disabled.
-      </div>
-    </section>
-
-    <!-- Right Column: System Telemetry & Event Surveillance -->
-    <section class="telemetry-panel">
-      <!-- Diagnostics Cards Grid -->
-      <div class="telemetry-cards">
-        <!-- Today's Events Count Card -->
-        <div class="card metric-card">
-          <div class="metric-header">
-            <span>Today's Incidents</span>
-            <span id="todayEventsBadge" class="badge">0 Today</span>
-          </div>
-          <div class="metric-val" id="todayEventsCount">0</div>
-          <div class="progress-bar-bg">
-            <div id="todayEventsBar" class="progress-bar-fill" style="width: 100%; background: var(--color-brand);"></div>
-          </div>
-          <div class="metric-sub" id="lastDetectionSub">Last detection: <strong id="lastDetectionTimeText">None</strong></div>
-        </div>
-
-        <!-- Storage & Retention Card -->
-        <div class="card metric-card">
-          <div class="metric-header">
-            <span>Storage Retention</span>
-            <span id="storagePercentBadge" class="badge">0% Used</span>
-          </div>
-          <div class="metric-val" id="storageUsedMbText">0 MB</div>
-          <div class="progress-bar-bg">
-            <div id="storageBar" class="progress-bar-fill" style="width: 0%"></div>
-          </div>
-          <div class="metric-sub storage-sub-row">
-            <span>14d auto-purge (<span id="storageImageCount">0</span> images)</span>
-            <button id="purgeStorageBtn" class="btn-clean-link" title="Purge expired images now">🧹 Clean</button>
-          </div>
-        </div>
-
-        <!-- CPU Load Card -->
-        <div class="card metric-card">
-          <div class="metric-header">
-            <span>CPU Load</span>
-            <span id="metricCpuBadge" class="badge">Normal</span>
-          </div>
-          <div class="metric-val" id="metricCpu">--%</div>
-          <div class="progress-bar-bg">
-            <div id="metricCpuBar" class="progress-bar-fill" style="width: 0%"></div>
-          </div>
-          <div class="metric-sub" id="throttleStatus">Auto-throttle: Idle</div>
-        </div>
-
-        <!-- RAM Usage Card -->
-        <div class="card metric-card">
-          <div class="metric-header">
-            <span>RAM Usage</span>
-            <span id="metricRamBadge" class="badge">6.7 GB</span>
-          </div>
-          <div class="metric-val" id="metricRam">--%</div>
-          <div class="progress-bar-bg">
-            <div id="metricRamBar" class="progress-bar-fill" style="width: 0%"></div>
-          </div>
-          <div class="metric-sub" id="metricRamMb">-- MB used</div>
-        </div>
-
-        <!-- Ambient Audio Activity Card -->
-        <div class="card metric-card">
-          <div class="metric-header">
-            <span>Ambient Audio (Mic)</span>
-            <span id="metricAudioBadge" class="badge">Silent</span>
-          </div>
-          <div class="metric-val" id="metricAudioVal">0%</div>
-          <div class="progress-bar-bg">
-            <div id="metricAudioBar" class="progress-bar-fill" style="width: 0%; background: #38bdf8;"></div>
-          </div>
-          <div class="metric-sub" id="metricAudioSub">Noise floor: -- | Flashlight: Auto</div>
-        </div>
-      </div>
-
-      <!-- Latest Event Snapshot Showcase -->
-      <div class="card latest-event-showcase-card">
-        <div class="card-header">
-          <div class="card-title">
-            <span class="live-tag pulse">LATEST EVENT</span>
-            <h3 id="latestEventTitle">Awaiting Surveillance Event</h3>
-          </div>
-          <span id="latestEventTimeBadge" class="badge">--:--:--</span>
-        </div>
-        <div class="latest-event-body">
-          <div class="latest-event-thumb-container" id="latestEventThumbBox">
-            <img id="latestEventImg" src="/api/stream/snapshot" alt="Latest Event Snapshot" onerror="this.src='/api/stream/snapshot'">
-            <div id="latestEventTagBadge" class="latest-event-badge-tag">INITIAL</div>
-          </div>
-          <div class="latest-event-details">
-            <div class="latest-event-badge-row">
-              <span id="latestEventCategoryBadge" class="badge cat-motion">General motion</span>
-              <span id="latestEventNightBadge" class="badge badge-night-tag">☀️ Day Mode</span>
-            </div>
-            <div class="latest-event-desc" id="latestEventLabelText">Camera monitoring field actively. No alarms triggered yet.</div>
-            <div class="latest-event-stats">
-              <span>Confidence: <strong id="latestEventConfidence">--%</strong></span>
-              <span class="sep">•</span>
-              <span id="latestEventAgeText">Waiting...</span>
-            </div>
-            <button id="viewLatestEventBtn" class="btn btn-secondary btn-sm latest-event-view-btn">🔍 View Full Incident</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recorded Incidents Section: Timeline & Gallery -->
-      <div class="card event-feed-card">
-        <div class="card-header">
-          <div class="card-title">
-            <h2>🚨 Recorded Incident History</h2>
-          </div>
-          <!-- View Mode Switcher -->
-          <div class="feed-view-tabs">
-            <button id="viewTabTimeline" class="stream-tab active" title="Chronological incident sessions">📋 Timeline</button>
-            <button id="viewTabGallery" class="stream-tab" title="Image snapshot gallery">🖼️ Image Gallery</button>
-          </div>
-        </div>
-
-        <div class="card-subheader">
-          <!-- Event Category Filter Tabs -->
-          <div class="event-filter-tabs">
-            <button class="filter-tab active" data-filter="all">All (<span id="countAll">0</span>)</button>
-            <button class="filter-tab" data-filter="Person">Person (<span id="countPerson">0</span>)</button>
-            <button class="filter-tab" data-filter="Bird">Bird (<span id="countBird">0</span>)</button>
-            <button class="filter-tab" data-filter="Animal detected — species unconfirmed">Animal (<span id="countAnimal">0</span>)</button>
-            <button class="filter-tab" data-filter="Possible monkey">Monkey (<span id="countMonkey">0</span>)</button>
-            <button class="filter-tab" data-filter="General motion">Motion (<span id="countMotion">0</span>)</button>
-          </div>
-        </div>
-
-        <!-- Event Cards Container -->
-        <div id="eventsList" class="events-grid">
-          <div class="empty-state">No incidents recorded yet. Field is peaceful.</div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- QR Code Modal for Phone -->
-  <div id="qrModal" class="modal">
-    <div class="modal-content text-center">
-      <div class="modal-header">
-        <h3>📱 Mobile Access (Redmi 10 / Phone)</h3>
-        <button class="modal-close" data-close="qrModal">&times;</button>
-      </div>
-      <p class="modal-sub">Scan this QR code with your phone camera or browser to open the dashboard:</p>
-      <div id="qrCodeContainer" class="qr-container">Loading QR...</div>
-      <div class="modal-url-box">
-        <span id="qrUrlDisplay">http://...</span>
       </div>
     </div>
   </div>
 
   <!-- PIN Modal -->
-  <div id="pinModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
+  <div id="pinModal" class="soc-modal">
+    <div class="soc-modal-box modal-sm">
+      <div class="soc-modal-header">
         <h3>🔒 Dashboard PIN Verification</h3>
-        <button class="modal-close" data-close="pinModal">&times;</button>
+        <button class="modal-close-btn" data-close="pinModal">&times;</button>
       </div>
-      <p class="modal-sub">Enter your 4-digit dashboard PIN to unlock administrative controls:</p>
       <form id="pinForm">
-        <input type="password" id="pinInput" class="form-input" placeholder="Enter PIN (Default: 1234)" autofocus maxlength="8">
-        <div id="pinError" class="form-error"></div>
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-primary">Unlock Dashboard</button>
+        <div class="soc-modal-body">
+          <p class="text-sub">Enter your security PIN to unlock protected operations:</p>
+          <input type="password" id="pinInput" class="soc-input text-center mt-2" placeholder="PIN" maxlength="16" autofocus required>
+          <div id="pinError" class="auth-error-msg mt-2"></div>
+        </div>
+        <div class="soc-modal-footer">
+          <button type="submit" class="btn btn-primary w-100">Unlock Console</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Settings Modal -->
-  <div id="settingsModal" class="modal">
-    <div class="modal-content modal-large">
-      <div class="modal-header">
-        <h3>⚙️ PySURVEILLANCE Settings</h3>
-        <button class="modal-close" data-close="settingsModal">&times;</button>
-      </div>
-
-      <div class="settings-tabs">
-        <div class="settings-section">
-          <h4>📱 Camera Settings (Redmi 10 IP Webcam)</h4>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Phone IP Address</label>
-              <input type="text" id="cfgPhoneIp" class="form-input" value="192.168.31.211">
-            </div>
-            <div class="form-group">
-              <label>Port</label>
-              <input type="number" id="cfgPhonePort" class="form-input" value="8080">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Video Endpoint</label>
-              <input type="text" id="cfgVideoEp" class="form-input" value="/video">
-            </div>
-            <div class="form-group">
-              <label>Snapshot Endpoint</label>
-              <input type="text" id="cfgSnapshotEp" class="form-input" value="/shot.jpg">
-            </div>
-          </div>
-          <div class="form-actions">
-            <button id="cfgTestCamBtn" class="btn btn-secondary btn-sm">⚡ Test Camera Connection Now</button>
-            <span id="cfgCamTestStatus" class="test-result"></span>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h4>🎯 Detection & Performance Targets</h4>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Motion Detection Target FPS</label>
-              <input type="number" id="cfgMotionFps" class="form-input" min="1" max="30" value="8">
-            </div>
-            <div class="form-group">
-              <label>AI Inference Target FPS</label>
-              <input type="number" id="cfgAiFps" class="form-input" min="0.5" max="10" step="0.5" value="1.5">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Motion Sensitivity (Diff Threshold)</label>
-              <input type="number" id="cfgMotionThresh" class="form-input" value="25">
-            </div>
-            <div class="form-group">
-              <label>AI Confidence Minimum</label>
-              <input type="number" id="cfgConfidence" class="form-input" min="0.1" max="0.95" step="0.05" value="0.40">
-            </div>
-          </div>
-          <div class="form-checkbox">
-            <input type="checkbox" id="cfgAutoThrottle" checked>
-            <label for="cfgAutoThrottle">Automatically reduce processing if laptop CPU exceeds 85%</label>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h4>🔊 Laptop-Side Audio Alarms & Cooldowns</h4>
-          <div class="form-checkbox">
-            <input type="checkbox" id="cfgSoundEnabled" checked>
-            <label for="cfgSoundEnabled">Enable Laptop Speaker Audio Alerts</label>
-          </div>
-          <div class="form-row" style="margin-top: 0.5rem; gap: 1rem;">
-            <div class="form-checkbox">
-              <input type="checkbox" id="cfgAlarmMotion">
-              <label for="cfgAlarmMotion">Alarm on General Motion</label>
-            </div>
-            <div class="form-checkbox">
-              <input type="checkbox" id="cfgAlarmUnknown">
-              <label for="cfgAlarmUnknown">Alarm on Unknown Objects</label>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Person Cooldown (seconds)</label>
-              <input type="number" id="cfgCdPerson" class="form-input" value="30">
-            </div>
-            <div class="form-group">
-              <label>Animal / Monkey Cooldown (seconds)</label>
-              <input type="number" id="cfgCdAnimal" class="form-input" value="25">
-            </div>
-            <div class="form-group">
-              <label>General Motion Cooldown (seconds)</label>
-              <input type="number" id="cfgCdMotion" class="form-input" value="15">
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h4>🔔 Connected Browser Force Push Messages</h4>
-          <p class="settings-help">Force real-time alert messages, browser notifications, and chimes to any connected phone or laptop browser.</p>
-          <div class="form-checkbox">
-            <input type="checkbox" id="cfgPushEnabled" checked>
-            <label for="cfgPushEnabled"><strong>Enable Force Push Messages to Connected Browsers</strong></label>
-          </div>
-          <div class="form-checkbox" style="margin-left: 1.5rem;">
-            <input type="checkbox" id="cfgPushDesktop" checked>
-            <label for="cfgPushDesktop">Show Native Desktop / Browser Notification Popups</label>
-          </div>
-          <div class="form-checkbox" style="margin-left: 1.5rem;">
-            <input type="checkbox" id="cfgPushAudio" checked>
-            <label for="cfgPushAudio">Play Browser Audio Chime on Alert (Mobile & Laptop)</label>
-          </div>
-          <div class="form-row" style="margin-top: 0.5rem; margin-left: 1.5rem; gap: 1rem;">
-            <div class="form-checkbox">
-              <input type="checkbox" id="cfgPushMotion">
-              <label for="cfgPushMotion">Push on General Motion</label>
-            </div>
-            <div class="form-checkbox">
-              <input type="checkbox" id="cfgPushUnknown">
-              <label for="cfgPushUnknown">Push on Unknown Objects</label>
-            </div>
-          </div>
-          <div style="margin-top: 0.75rem;">
-            <button type="button" id="cfgTestPushBtn" class="btn btn-secondary btn-sm">🧪 Send Test Push to this Browser</button>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h4>🌙 Dedicated Night Surveillance Settings</h4>
-          <p class="settings-help">Tuned background subtraction and illumination filtering for low-light conditions.</p>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Night Mode Policy</label>
-              <select id="cfgNightModeSelect" class="form-input">
-                <option value="auto">⚡ Auto (Adaptive based on measured lux)</option>
-                <option value="on">🌙 Force Night Profile (High noise tolerance)</option>
-                <option value="off">☀️ Force Day Profile (Normal sensitivity)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Auto Night Lux Threshold</label>
-              <input type="number" id="cfgNightAutoThresh" class="form-input" min="15" max="90" value="45">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Day Motion Sensitivity (Threshold)</label>
-              <input type="number" id="cfgDayThresh" class="form-input" value="25">
-            </div>
-            <div class="form-group">
-              <label>Night Motion Sensitivity (Threshold)</label>
-              <input type="number" id="cfgNightThresh" class="form-input" value="34">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Day Min Motion Area (px)</label>
-              <input type="number" id="cfgDayMinArea" class="form-input" value="250">
-            </div>
-            <div class="form-group">
-              <label>Night Min Motion Area (px)</label>
-              <input type="number" id="cfgNightMinArea" class="form-input" value="350">
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h4>💾 Storage Retention & Event Deduplication</h4>
-          <p class="settings-help">Pure event-based JPEG persistence (NO continuous video). Automatic 14-day purging.</p>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Event Image Retention (Days)</label>
-              <input type="number" id="cfgRetentionDays" class="form-input" min="1" max="90" value="14">
-            </div>
-            <div class="form-group">
-              <label>Max Storage Quota (MB)</label>
-              <input type="number" id="cfgMaxStorageMb" class="form-input" min="256" max="10240" value="2048">
-            </div>
-            <div class="form-group">
-              <label>Session Pause Timeout (sec)</label>
-              <input type="number" id="cfgSessionTimeout" class="form-input" min="2" max="15" value="4">
-            </div>
-          </div>
-          <div class="form-row" style="gap: 1.5rem; margin-top: 0.5rem;">
-            <div class="form-checkbox">
-              <input type="checkbox" id="cfgCapInitial" checked disabled>
-              <label for="cfgCapInitial">Capture Initial Event Frame (Always active)</label>
-            </div>
-            <div class="form-checkbox">
-              <input type="checkbox" id="cfgCapChange" checked>
-              <label for="cfgCapChange">Capture Change Frame on new object/confidence jump</label>
-            </div>
-            <div class="form-checkbox">
-              <input type="checkbox" id="cfgCapFinal" checked>
-              <label for="cfgCapFinal">Capture Final Frame when motion ceases</label>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h4>🔦 Automatic Flashlight & Audio Detection</h4>
-          <p class="settings-help">Complementary visual motion and ambient microphone activity triggers in low-light conditions.</p>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Flashlight Mode</label>
-              <select id="cfgFlashlightMode" class="form-input">
-                <option value="auto">⚡ Auto (Camera motion + Microphone in low light)</option>
-                <option value="manual">💡 Manual (Force ON)</option>
-                <option value="off">⚫ Off (Automation disabled)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Low Light Lux Threshold</label>
-              <input type="number" id="cfgFlashlightLux" class="form-input" min="10" max="80" value="45">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Minimum ON Duration (sec)</label>
-              <input type="number" id="cfgFlashlightMinOn" class="form-input" min="5" max="30" value="10">
-            </div>
-            <div class="form-group">
-              <label>Maximum ON Duration (sec, safety cutoff)</label>
-              <input type="number" id="cfgFlashlightMaxOn" class="form-input" min="30" max="300" value="120">
-            </div>
-            <div class="form-group">
-              <label>Inactivity Auto-OFF (sec)</label>
-              <input type="number" id="cfgFlashlightInactivity" class="form-input" min="5" max="60" value="15">
-            </div>
-          </div>
-          <div class="form-checkbox" style="margin-top: 0.5rem;">
-            <input type="checkbox" id="cfgAudioEnabled" checked>
-            <label for="cfgAudioEnabled">Enable Ambient Microphone Activity Sensor</label>
-          </div>
-          <div class="form-row" style="margin-top: 0.5rem;">
-            <div class="form-group">
-              <label>Audio Spike Sensitivity Multiplier</label>
-              <input type="number" id="cfgAudioSpike" class="form-input" min="1.5" max="8.0" step="0.5" value="3.0">
-            </div>
-            <div class="form-group">
-              <label>Sustained Sound RMS Threshold</label>
-              <input type="number" id="cfgAudioSustained" class="form-input" min="1000" max="10000" step="500" value="2500">
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h4>⚡ Power & Security</h4>
-          <div class="form-checkbox">
-            <input type="checkbox" id="cfgPreventSleep" checked>
-            <label for="cfgPreventSleep">Prevent Laptop from Sleeping/Suspending during monitoring</label>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Change Dashboard PIN</label>
-              <input type="password" id="cfgNewPin" class="form-input" placeholder="Leave blank to keep current">
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Diagnostics Modal -->
-  <div id="diagnosticsModal" class="modal">
-    <div class="modal-content modal-large">
-      <div class="modal-header">
-        <h3>🩺 PySURVEILLANCE System Diagnostics & Subsystem Health</h3>
-        <button class="modal-close" data-close="diagnosticsModal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="diagnostics-grid">
-          <!-- Camera Subsystem -->
-          <div class="diag-card">
-            <h4>📹 Camera Stream Subsystem</h4>
-            <div class="diag-row"><span>State:</span> <strong id="diagCamState">ONLINE</strong></div>
-            <div class="diag-row"><span>Target URL:</span> <span id="diagCamUrl" class="text-mono">--</span></div>
-            <div class="diag-row"><span>Resolution:</span> <span id="diagCamRes">--</span></div>
-            <div class="diag-row"><span>Acquisition FPS:</span> <span id="diagCamFps">--</span></div>
-            <div class="diag-row"><span>Processing Latency:</span> <span id="diagCamLatency">--</span></div>
-            <div class="diag-row"><span>Reconnection Attempts:</span> <span id="diagCamReconnects">0</span></div>
-          </div>
-          <!-- Phone Audio Subsystem -->
-          <div class="diag-card">
-            <h4>🎙️ Phone Audio Subsystem</h4>
-            <div class="diag-row"><span>Audio Source:</span> <strong>Redmi 10 (IP Webcam)</strong></div>
-            <div class="diag-row"><span>Connection:</span> <span id="diagMicState">DISCONNECTED</span></div>
-            <div class="diag-row"><span>Endpoint:</span> <span id="diagMicUrl" class="text-mono">--</span></div>
-            <div class="diag-row"><span>Format:</span> <span id="diagMicFormat">16kHz 16-bit Mono PCM</span></div>
-            <div class="diag-row"><span>Current Signal:</span> <span id="diagMicRms">0.0 RMS</span></div>
-            <div class="diag-row"><span>Noise Floor (EMA):</span> <span id="diagMicFloor">--</span></div>
-            <div class="diag-row"><span>Policy Guard:</span> <span class="badge badge-success">Laptop Mic Fallback Prohibited</span></div>
-          </div>
-          <!-- Flashlight Controller -->
-          <div class="diag-card">
-            <h4>🔦 Flashlight Automation Subsystem</h4>
-            <div class="diag-row"><span>Mode:</span> <span id="diagFlashMode">AUTO</span></div>
-            <div class="diag-row"><span>Hardware State:</span> <span id="diagFlashHw">OFF</span></div>
-            <div class="diag-row"><span>Requested State:</span> <span id="diagFlashReq">OFF</span></div>
-            <div class="diag-row"><span>Lighting Condition:</span> <span id="diagFlashLight">DARK / BRIGHT</span></div>
-            <div class="diag-row"><span>Inactivity Limit:</span> <span>15.0s (Reset on Motion)</span></div>
-            <div class="diag-row"><span>Last Command Result:</span> <span id="diagFlashResult">IDLE</span></div>
-          </div>
-          <!-- Processing & System Resources -->
-          <div class="diag-card">
-            <h4>💻 Host Processing & Resources</h4>
-            <div class="diag-row"><span>CPU Utilization:</span> <span id="diagCpuPct">0%</span></div>
-            <div class="diag-row"><span>RAM Consumption:</span> <span id="diagRamPct">0 MB</span></div>
-            <div class="diag-row"><span>Processing FPS:</span> <span id="diagProcFps">--</span></div>
-            <div class="diag-row"><span>Auto-Throttle Active:</span> <span id="diagThrottle">No</span></div>
-            <div class="diag-row"><span>Power Management:</span> <span>Sleep Inhibited (Active)</span></div>
-          </div>
-          <!-- Database & Storage -->
-          <div class="diag-card">
-            <h4>💾 Storage & Database Health</h4>
-            <div class="diag-row"><span>SQLite Database:</span> <span id="diagDbStatus">storage/events.db (Healthy)</span></div>
-            <div class="diag-row"><span>Total Incident Records:</span> <span id="diagDbRows">0</span></div>
-            <div class="diag-row"><span>Stored Snapshots:</span> <span id="diagStorageCount">0</span></div>
-            <div class="diag-row"><span>Disk Quota:</span> <span id="diagStorageMb">--</span></div>
-            <div class="diag-row"><span>Retention Window:</span> <span>14 Days (Active Events Protected)</span></div>
-          </div>
-          <!-- Remote Access & Security -->
-          <div class="diag-card">
-            <h4>🔒 Security & Remote Access Status</h4>
-            <div class="diag-row"><span>PIN Security:</span> <span>PBKDF2 Salted Hash (Active)</span></div>
-            <div class="diag-row"><span>Local Network Enforced:</span> <span>Yes (Private Subnet Bound)</span></div>
-            <div class="diag-row"><span>Public Ports Exposed:</span> <span class="badge badge-success">Zero Public Exposure</span></div>
-            <div class="diag-row"><span>Recommended Remote Access:</span> <span>WireGuard / Tailscale</span></div>
-            <div class="diag-row"><span>Active Push Listeners:</span> <span id="diagPushClients">1</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary modal-close" data-close="diagnosticsModal">Close</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Event Detail Modal -->
-  <div id="eventDetailModal" class="modal">
-    <div class="modal-content modal-large">
-      <div class="modal-header">
-        <h3 id="eventDetailTitle">Event Details</h3>
-        <button class="modal-close" data-close="eventDetailModal">&times;</button>
+  <div id="eventDetailModal" class="soc-modal">
+    <div class="soc-modal-box modal-lg">
+      <div class="soc-modal-header">
+        <h3 id="eventDetailTitle">Incident Details</h3>
+        <button class="modal-close-btn" data-close="eventDetailModal">&times;</button>
       </div>
-      <div class="event-detail-body">
-        <div class="event-detail-image-box">
-          <img id="eventDetailImg" src="" alt="Event Image">
-        </div>
-        <div class="event-detail-meta">
-          <div class="meta-row"><strong>Category:</strong> <span id="eventDetailCategory" class="badge">--</span></div>
-          <div class="meta-row"><strong>Timestamp:</strong> <span id="eventDetailTimestamp">--</span></div>
-          <div class="meta-row"><strong>Confidence:</strong> <span id="eventDetailConfidence">--</span></div>
-          <div class="meta-row"><strong>Label:</strong> <span id="eventDetailLabel">--</span></div>
-          <div class="meta-row">
-            <strong>Detections:</strong>
-            <pre id="eventDetailJson" class="json-box"></pre>
+      <div class="soc-modal-body">
+        <div class="event-inspect-grid">
+          <div class="inspect-img-box">
+            <img id="eventDetailImg" src="" alt="Incident Snapshot">
           </div>
-          <div class="modal-footer" style="padding: 1rem 0 0 0;">
-            <button id="deleteEventBtn" class="btn btn-danger btn-sm">🗑️ Delete Event</button>
-            <a id="downloadEventImgBtn" href="#" download class="btn btn-secondary btn-sm">⬇️ Download Snapshot</a>
+          <div class="inspect-meta-box">
+            <div class="meta-item"><span class="lbl">Category:</span> <span id="eventDetailCategory" class="badge">--</span></div>
+            <div class="meta-item"><span class="lbl">Timestamp:</span> <span id="eventDetailTimestamp">--</span></div>
+            <div class="meta-item"><span class="lbl">Confidence:</span> <span id="eventDetailConfidence">--</span></div>
+            <div class="meta-item"><span class="lbl">Label:</span> <span id="eventDetailLabel">--</span></div>
+            <div class="meta-item">
+              <span class="lbl">Bounding Boxes / Metadata:</span>
+              <pre id="eventDetailJson" class="json-code-box"></pre>
+            </div>
+            <div class="inspect-actions mt-3">
+              <a id="downloadEventImgBtn" href="#" download class="btn btn-outline btn-sm">⬇️ Download Snapshot</a>
+              <button id="deleteEventBtn" class="btn btn-danger btn-sm">🗑️ Delete Incident</button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- In-App Force Push Floating Banner Container -->
-  <div id="pushBannerContainer" class="push-banner-container" aria-live="assertive"></div>
-
-  <!-- Toast Notification Container -->
-  <div id="toastContainer" class="toast-container"></div>
+  <!-- Toast & Notification Containers -->
+  <div id="toastContainer" class="toast-stack"></div>
+  <div id="pushBannerContainer" class="floating-push-stack"></div>
 
   <script src="/static/dashboard.js"></script>
 </body>

@@ -1,2233 +1,1475 @@
 /**
- * Wheat Watch Dashboard Client Logic.
- * Event-based surveillance dashboard with Night Mode, Event Deduplication Timeline,
- * Storage Retention, Force Push Alerts, and Real-time Telemetry.
+ * PySURVEILLANCE — Security Operations Center (SOC) Console v2.0
+ * Architecture: SPA hash router, dual-mode stream renderer, SSE subscriber,
+ * telemetry poller, hardware controls, and incident forensic gallery.
  */
 
-let currentToken = localStorage.getItem('wheat_watch_token') || '';
-let currentCsrfToken = localStorage.getItem('wheat_watch_csrf') || '';
-let isMonitoring = true;
-let currentFilter = 'all';
-let currentViewMode = localStorage.getItem('wheat_watch_view_mode') || 'timeline'; // 'timeline' or 'gallery'
-let currentSelectedEventId = null;
-let latestEventCache = null;
-let latestDiagnosticsData = null;
+(function () {
+  'use strict';
 
-// Force Push Messages State
-let pushEnabled = localStorage.getItem('wheat_watch_push_enabled') !== 'false';
-let pushDesktop = localStorage.getItem('wheat_watch_push_desktop') !== 'false';
-let pushAudio = localStorage.getItem('wheat_watch_push_audio') !== 'false';
-let pushEventSource = null;
+  // State Management
+  const state = {
+    currentView: 'overview',
+    isAuthenticated: false,
+    sessionToken: localStorage.getItem('pysurv_session_token') || '',
+    csrfToken: '',
+    streamMode: 'mjpeg', // 'mjpeg' | 'canvas'
+    canvasTimer: null,
+    statusPollTimer: null,
+    eventsPollTimer: null,
+    storagePollTimer: null,
+    eventSource: null,
+    events: [],
+    selectedCategory: 'all',
+    incidentViewMode: 'timeline', // 'timeline' | 'gallery'
+    lastStatus: null,
+    isSurveillanceArmed: true,
+    audioFloor: 1200.0,
+    activeEventId: null
+  };
 
-// DOM Elements: Top Bar & Status
-const navSurveillanceBtn = document.getElementById('navSurveillanceBtn');
-const navSurveillanceText = document.getElementById('navSurveillanceText');
-const btnNightDay = document.getElementById('btnNightDay');
-const btnNightNight = document.getElementById('btnNightNight');
-const btnNightAuto = document.getElementById('btnNightAuto');
-const nightActiveIndicator = document.getElementById('nightActiveIndicator');
-const uptimeText = document.getElementById('uptimeText');
-const cameraPill = document.getElementById('cameraPill');
-const cameraPillText = document.getElementById('cameraPillText');
-const micPill = document.getElementById('micPill');
-const micPillText = document.getElementById('micPillText');
-const dbPill = document.getElementById('dbPill');
-const dbStatusText = document.getElementById('dbStatusText');
-const sleepPill = document.getElementById('sleepPill');
+  // DOM Elements Cache
+  const DOM = {};
 
-const cameraDisconnectBanner = document.getElementById('cameraDisconnectBanner');
-const bannerRetryCamBtn = document.getElementById('bannerRetryCamBtn');
+  function cacheDom() {
+    // Navigation & Views
+    DOM.sidebar = document.getElementById('socSidebar');
+    DOM.sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn');
+    DOM.mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    DOM.currentViewTitle = document.getElementById('currentViewTitle');
+    DOM.views = document.querySelectorAll('.soc-view');
+    DOM.navItems = document.querySelectorAll('.nav-item');
+    DOM.sidebarLiveTag = document.getElementById('sidebarLiveTag');
+    DOM.sidebarIncidentCount = document.getElementById('sidebarIncidentCount');
+    DOM.sidebarAudioDot = document.getElementById('sidebarAudioDot');
+    DOM.sidebarHostStatus = document.getElementById('sidebarHostStatus');
+    DOM.sidebarPinBtn = document.getElementById('sidebarPinBtn');
+    DOM.sidebarPinText = document.getElementById('sidebarPinText');
 
-const togglePushNavBtn = document.getElementById('togglePushNavBtn');
-const pushNavLabel = document.getElementById('pushNavLabel');
-const testPushBtn = document.getElementById('testPushBtn');
-const cfgTestPushBtn = document.getElementById('cfgTestPushBtn');
-const diagnosticsBtn = document.getElementById('diagnosticsBtn');
+    // Topbar Controls
+    DOM.masterSurveillanceBtn = document.getElementById('masterSurveillanceBtn');
+    DOM.masterSurveillanceLabel = document.getElementById('masterSurveillanceLabel');
+    DOM.btnNightDay = document.getElementById('btnNightDay');
+    DOM.btnNightNight = document.getElementById('btnNightNight');
+    DOM.btnNightAuto = document.getElementById('btnNightAuto');
+    DOM.uptimeText = document.getElementById('uptimeText');
+    DOM.cameraPill = document.getElementById('cameraPill');
+    DOM.cameraPillText = document.getElementById('cameraPillText');
+    DOM.micPill = document.getElementById('micPill');
+    DOM.micPillText = document.getElementById('micPillText');
+    DOM.dbPill = document.getElementById('dbPill');
+    DOM.dbStatusText = document.getElementById('dbStatusText');
+    DOM.togglePushNavBtn = document.getElementById('togglePushNavBtn');
+    DOM.qrBtn = document.getElementById('qrBtn');
+    DOM.testAlarmBtn = document.getElementById('testAlarmBtn');
+    DOM.fullscreenBtn = document.getElementById('fullscreenBtn');
 
-const laptopLanIp = document.getElementById('laptopLanIp');
-const phoneUrlText = document.getElementById('phoneUrlText');
-const phoneUrlLink = document.getElementById('phoneUrlLink');
+    // Overview View
+    DOM.todayEventsCount = document.getElementById('todayEventsCount');
+    DOM.todayIncidentsBadge = document.getElementById('todayIncidentsBadge');
+    DOM.lastDetectionTimeText = document.getElementById('lastDetectionTimeText');
+    DOM.overviewCamBadge = document.getElementById('overviewCamBadge');
+    DOM.overviewFpsValue = document.getElementById('overviewFpsValue');
+    DOM.overviewCamMeta = document.getElementById('overviewCamMeta');
+    DOM.overviewMicBadge = document.getElementById('overviewMicBadge');
+    DOM.overviewMicRms = document.getElementById('overviewMicRms');
+    DOM.overviewFlashBadge = document.getElementById('overviewFlashBadge');
+    DOM.overviewFlashTrigger = document.getElementById('overviewFlashTrigger');
+    DOM.overviewStreamImg = document.getElementById('overviewStreamImg');
+    DOM.overviewHudFps = document.getElementById('overviewHudFps');
+    DOM.overviewHudRes = document.getElementById('overviewHudRes');
+    DOM.overviewStartBtn = document.getElementById('overviewStartBtn');
+    DOM.overviewStopBtn = document.getElementById('overviewStopBtn');
+    DOM.overviewSnapshotBtn = document.getElementById('overviewSnapshotBtn');
+    DOM.overviewTestPushBtn = document.getElementById('overviewTestPushBtn');
+    DOM.latestEventImg = document.getElementById('latestEventImg');
+    DOM.latestEventTagBadge = document.getElementById('latestEventTagBadge');
+    DOM.latestEventLabelText = document.getElementById('latestEventLabelText');
+    DOM.latestEventConfidence = document.getElementById('latestEventConfidence');
+    DOM.latestEventTimeBadge = document.getElementById('latestEventTimeBadge');
+    DOM.latestEventAgeText = document.getElementById('latestEventAgeText');
+    DOM.latestEventCategoryBadge = document.getElementById('latestEventCategoryBadge');
+    DOM.viewLatestEventBtn = document.getElementById('viewLatestEventBtn');
 
-const telemetryFps = document.getElementById('telemetryFps');
-const telemetryProcFps = document.getElementById('telemetryProcFps');
-const telemetryLatency = document.getElementById('telemetryLatency');
+    // Live Monitoring View
+    DOM.cinemaScreen = document.getElementById('cinemaScreen');
+    DOM.liveStreamImg = document.getElementById('liveStreamImg');
+    DOM.liveCanvas = document.getElementById('liveCanvas');
+    DOM.hudModeBadge = document.getElementById('hudModeBadge');
+    DOM.telemetryFps = document.getElementById('telemetryFps');
+    DOM.telemetryProcFps = document.getElementById('telemetryProcFps');
+    DOM.telemetryLatency = document.getElementById('telemetryLatency');
+    DOM.liveResBadge = document.getElementById('liveResBadge');
+    DOM.cameraDisconnectBanner = document.getElementById('cameraDisconnectBanner');
+    DOM.bannerRetryCamBtn = document.getElementById('bannerRetryCamBtn');
+    DOM.modeMjpegBtn = document.getElementById('modeMjpegBtn');
+    DOM.modeCanvasBtn = document.getElementById('modeCanvasBtn');
+    DOM.modeDirectPhoneLink = document.getElementById('modeDirectPhoneLink');
+    DOM.snapshotBtn = document.getElementById('snapshotBtn');
+    DOM.toggleCinemaFullscreenBtn = document.getElementById('toggleCinemaFullscreenBtn');
 
-const toggleMonitoringBtn = document.getElementById('toggleMonitoringBtn');
-const testAlarmBtn = document.getElementById('testAlarmBtn');
-const testCamBtn = document.getElementById('testCamBtn');
-const snapshotBtn = document.getElementById('snapshotBtn');
+    // Camera Hardware Console
+    DOM.sliderQuality = document.getElementById('sliderQuality');
+    DOM.sliderQualityVal = document.getElementById('sliderQualityVal');
+    DOM.sliderExposure = document.getElementById('sliderExposure');
+    DOM.sliderExposureVal = document.getElementById('sliderExposureVal');
+    DOM.sliderGamma = document.getElementById('sliderGamma');
+    DOM.sliderGammaVal = document.getElementById('sliderGammaVal');
+    DOM.sliderBrightness = document.getElementById('sliderBrightness');
+    DOM.sliderBrightnessVal = document.getElementById('sliderBrightnessVal');
+    DOM.sliderContrast = document.getElementById('sliderContrast');
+    DOM.sliderContrastVal = document.getElementById('sliderContrastVal');
+    DOM.selectWhiteBalance = document.getElementById('selectWhiteBalance');
+    DOM.toggleHdrBtn = document.getElementById('toggleHdrBtn');
+    DOM.toggleTorchBtn = document.getElementById('toggleTorchBtn');
+    DOM.toggleNightBtn = document.getElementById('toggleNightBtn');
+    DOM.testCamBtn = document.getElementById('testCamBtn');
+    DOM.resetControlsBtn = document.getElementById('resetControlsBtn');
 
-// Diagnostics & Metrics Cards
-const todayEventsBadge = document.getElementById('todayEventsBadge');
-const todayEventsCount = document.getElementById('todayEventsCount');
-const lastDetectionTimeText = document.getElementById('lastDetectionTimeText');
+    // Detection Center
+    DOM.detActiveProfile = document.getElementById('detActiveProfile');
+    DOM.detMinArea = document.getElementById('detMinArea');
+    DOM.detMotionThresh = document.getElementById('detMotionThresh');
+    DOM.detMeasuredLux = document.getElementById('detMeasuredLux');
 
-const storagePercentBadge = document.getElementById('storagePercentBadge');
-const storageUsedMbText = document.getElementById('storageUsedMbText');
-const storageBar = document.getElementById('storageBar');
-const storageImageCount = document.getElementById('storageImageCount');
-const purgeStorageBtn = document.getElementById('purgeStorageBtn');
+    // Incident History
+    DOM.viewTabTimeline = document.getElementById('viewTabTimeline');
+    DOM.viewTabGallery = document.getElementById('viewTabGallery');
+    DOM.clearEventsBtn = document.getElementById('clearEventsBtn');
+    DOM.eventsList = document.getElementById('eventsList');
+    DOM.catPills = document.querySelectorAll('.cat-pill');
+    DOM.countAll = document.getElementById('countAll');
+    DOM.countPerson = document.getElementById('countPerson');
+    DOM.countBird = document.getElementById('countBird');
+    DOM.countAnimal = document.getElementById('countAnimal');
+    DOM.countMonkey = document.getElementById('countMonkey');
+    DOM.countMotion = document.getElementById('countMotion');
 
-const metricCpu = document.getElementById('metricCpu');
-const metricCpuBar = document.getElementById('metricCpuBar');
-const metricCpuBadge = document.getElementById('metricCpuBadge');
-const throttleStatus = document.getElementById('throttleStatus');
+    // Phone Audio Monitoring
+    DOM.testAudioBtn = document.getElementById('testAudioBtn');
+    DOM.audioStateBadge = document.getElementById('audioStateBadge');
+    DOM.audioMeterFill = document.getElementById('audioMeterFill');
+    DOM.audioRmsText = document.getElementById('audioRmsText');
+    DOM.audioNoiseFloorText = document.getElementById('audioNoiseFloorText');
+    DOM.audioSnrText = document.getElementById('audioSnrText');
+    DOM.audioFormatText = document.getElementById('audioFormatText');
+    DOM.audioStreamUrlText = document.getElementById('audioStreamUrlText');
 
-const metricRam = document.getElementById('metricRam');
-const metricRamBar = document.getElementById('metricRamBar');
-const metricRamMb = document.getElementById('metricRamMb');
+    // Flashlight Automation
+    DOM.flashlightStatusPill = document.getElementById('flashlightStatusPill');
+    DOM.flashlightLightingText = document.getElementById('flashlightLightingText');
+    DOM.btnFlashlightAuto = document.getElementById('btnFlashlightAuto');
+    DOM.btnFlashlightManual = document.getElementById('btnFlashlightManual');
+    DOM.btnFlashlightOff = document.getElementById('btnFlashlightOff');
+    DOM.flashlightCountdownText = document.getElementById('flashlightCountdownText');
+    DOM.flashlightCountdownFill = document.getElementById('flashlightCountdownFill');
+    DOM.flashlightMotionText = document.getElementById('flashlightMotionText');
+    DOM.flashlightTriggerText = document.getElementById('flashlightTriggerText');
+    DOM.flashlightRequestedText = document.getElementById('flashlightRequestedText');
+    DOM.flashlightResultText = document.getElementById('flashlightResultText');
+    DOM.flashlightLogTableBody = document.getElementById('flashlightLogTableBody');
 
-// Flashlight & Audio Diagnostics
-const flashlightStatusPill = document.getElementById('flashlightStatusPill');
-const btnFlashlightAuto = document.getElementById('btnFlashlightAuto');
-const btnFlashlightManual = document.getElementById('btnFlashlightManual');
-const btnFlashlightOff = document.getElementById('btnFlashlightOff');
-const flashlightTriggerText = document.getElementById('flashlightTriggerText');
-const flashlightRequestedText = document.getElementById('flashlightRequestedText');
-const flashlightLightingText = document.getElementById('flashlightLightingText');
-const flashlightMotionText = document.getElementById('flashlightMotionText');
-const flashlightCountdownText = document.getElementById('flashlightCountdownText');
-const flashlightCountdownFill = document.getElementById('flashlightCountdownFill');
-const flashlightResultText = document.getElementById('flashlightResultText');
-const toggleFlashlightLogBtn = document.getElementById('toggleFlashlightLogBtn');
-const flashlightLogContainer = document.getElementById('flashlightLogContainer');
-const flashlightLogTableBody = document.getElementById('flashlightLogTableBody');
+    // System Analytics
+    DOM.analyticsBackupBtn = document.getElementById('analyticsBackupBtn');
+    DOM.analyticsPurgeBtn = document.getElementById('analyticsPurgeBtn');
+    DOM.metricCpu = document.getElementById('metricCpu');
+    DOM.metricCpuBar = document.getElementById('metricCpuBar');
+    DOM.metricRam = document.getElementById('metricRam');
+    DOM.metricRamBar = document.getElementById('metricRamBar');
+    DOM.metricRamMb = document.getElementById('metricRamMb');
+    DOM.throttleStatus = document.getElementById('throttleStatus');
+    DOM.analyticsDbRows = document.getElementById('analyticsDbRows');
+    DOM.storageImageCount = document.getElementById('storageImageCount');
+    DOM.storageUsedMbText = document.getElementById('storageUsedMbText');
+    DOM.storageBar = document.getElementById('storageBar');
+    DOM.storagePercentBadge = document.getElementById('storagePercentBadge');
 
-// Audio elements
-const audioStateBadge = document.getElementById('audioStateBadge');
-const audioStatusText = document.getElementById('audioStatusText');
-const audioMeterFill = document.getElementById('audioMeterFill');
-const audioRmsText = document.getElementById('audioRmsText');
-const audioNoiseFloorText = document.getElementById('audioNoiseFloorText');
-const audioSnrText = document.getElementById('audioSnrText');
-const audioFormatText = document.getElementById('audioFormatText');
-const audioStreamUrlText = document.getElementById('audioStreamUrlText');
-const testAudioBtn = document.getElementById('testAudioBtn');
+    // Security & Access
+    DOM.securityLogoutBtn = document.getElementById('securityLogoutBtn');
 
-const metricAudioBadge = document.getElementById('metricAudioBadge');
-const metricAudioVal = document.getElementById('metricAudioVal');
-const metricAudioBar = document.getElementById('metricAudioBar');
-const metricAudioSub = document.getElementById('metricAudioSub');
+    // Settings
+    DOM.saveGlobalSettingsBtn = document.getElementById('saveGlobalSettingsBtn');
+    DOM.cfgPhoneIp = document.getElementById('cfgPhoneIp');
+    DOM.cfgPhonePort = document.getElementById('cfgPhonePort');
+    DOM.cfgVideoEp = document.getElementById('cfgVideoEp');
+    DOM.cfgSnapshotEp = document.getElementById('cfgSnapshotEp');
+    DOM.cfgAudioEp = document.getElementById('cfgAudioEp');
+    DOM.cfgMotionFps = document.getElementById('cfgMotionFps');
+    DOM.cfgAiFps = document.getElementById('cfgAiFps');
+    DOM.cfgMotionThresh = document.getElementById('cfgMotionThresh');
+    DOM.cfgConfidence = document.getElementById('cfgConfidence');
+    DOM.cfgAutoThrottle = document.getElementById('cfgAutoThrottle');
+    DOM.cfgSoundEnabled = document.getElementById('cfgSoundEnabled');
+    DOM.cfgCdPerson = document.getElementById('cfgCdPerson');
+    DOM.cfgCdAnimal = document.getElementById('cfgCdAnimal');
+    DOM.cfgCdMotion = document.getElementById('cfgCdMotion');
+    DOM.cfgNewPin = document.getElementById('cfgNewPin');
 
-// Latest Event Showcase
-const latestEventTitle = document.getElementById('latestEventTitle');
-const latestEventTimeBadge = document.getElementById('latestEventTimeBadge');
-const latestEventThumbBox = document.getElementById('latestEventThumbBox');
-const latestEventImg = document.getElementById('latestEventImg');
-const latestEventTagBadge = document.getElementById('latestEventTagBadge');
-const latestEventCategoryBadge = document.getElementById('latestEventCategoryBadge');
-const latestEventNightBadge = document.getElementById('latestEventNightBadge');
-const latestEventLabelText = document.getElementById('latestEventLabelText');
-const latestEventConfidence = document.getElementById('latestEventConfidence');
-const latestEventAgeText = document.getElementById('latestEventAgeText');
-const viewLatestEventBtn = document.getElementById('viewLatestEventBtn');
+    // Modals
+    DOM.qrModal = document.getElementById('qrModal');
+    DOM.qrCodeContainer = document.getElementById('qrCodeContainer');
+    DOM.phoneUrlText = document.getElementById('phoneUrlText');
+    DOM.phoneUrlLink = document.getElementById('phoneUrlLink');
+    DOM.copyUrlBtn = document.getElementById('copyUrlBtn');
 
-// View Mode Tabs & Category Filters
-const viewTabTimeline = document.getElementById('viewTabTimeline');
-const viewTabGallery = document.getElementById('viewTabGallery');
-const eventsList = document.getElementById('eventsList');
-const pinStatusText = document.getElementById('pinStatusText');
+    DOM.pinModal = document.getElementById('pinModal');
+    DOM.pinForm = document.getElementById('pinForm');
+    DOM.pinInput = document.getElementById('pinInput');
+    DOM.pinError = document.getElementById('pinError');
 
-const countAll = document.getElementById('countAll');
-const countPerson = document.getElementById('countPerson');
-const countBird = document.getElementById('countBird');
-const countAnimal = document.getElementById('countAnimal');
-const countMonkey = document.getElementById('countMonkey');
-const countMotion = document.getElementById('countMotion');
+    DOM.eventDetailModal = document.getElementById('eventDetailModal');
+    DOM.eventDetailTitle = document.getElementById('eventDetailTitle');
+    DOM.eventDetailImg = document.getElementById('eventDetailImg');
+    DOM.eventDetailCategory = document.getElementById('eventDetailCategory');
+    DOM.eventDetailTimestamp = document.getElementById('eventDetailTimestamp');
+    DOM.eventDetailConfidence = document.getElementById('eventDetailConfidence');
+    DOM.eventDetailLabel = document.getElementById('eventDetailLabel');
+    DOM.eventDetailJson = document.getElementById('eventDetailJson');
+    DOM.downloadEventImgBtn = document.getElementById('downloadEventImgBtn');
+    DOM.deleteEventBtn = document.getElementById('deleteEventBtn');
 
-// Modals
-const qrModal = document.getElementById('qrModal');
-const pinModal = document.getElementById('pinModal');
-const settingsModal = document.getElementById('settingsModal');
-const eventDetailModal = document.getElementById('eventDetailModal');
-const diagnosticsModal = document.getElementById('diagnosticsModal');
-
-// Helper: Authenticated Fetch with CSRF support
-async function apiFetch(url, options = {}) {
-  options.headers = options.headers || {};
-  if (currentToken) {
-    options.headers['X-Dashboard-Token'] = currentToken;
+    DOM.toastContainer = document.getElementById('toastContainer');
+    DOM.pushBannerContainer = document.getElementById('pushBannerContainer');
   }
-  if (currentCsrfToken && options.method && options.method !== 'GET') {
-    options.headers['X-CSRF-Token'] = currentCsrfToken;
-  }
-  const res = await fetch(url, options);
-  if (res.status === 401) {
-    currentToken = '';
-    localStorage.removeItem('wheat_watch_token');
-    if (pinStatusText) pinStatusText.textContent = '(Locked)';
-    openModal(pinModal);
-  }
-  return res;
-}
 
-// Toast Notifications
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toastContainer');
-  if (!container) return;
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
-}
+  // =========================================================================
+  // API Helper
+  // =========================================================================
+  async function apiFetch(endpoint, options = {}) {
+    const headers = options.headers || {};
+    if (state.sessionToken) {
+      headers['X-Session-Token'] = state.sessionToken;
+    }
+    if (state.csrfToken) {
+      headers['X-CSRF-Token'] = state.csrfToken;
+    }
+    if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(options.body);
+    }
+    options.headers = headers;
 
-// Relative Time Formatter
-function formatRelativeTime(timestamp) {
-  if (!timestamp) return 'None';
-  try {
-    const t = typeof timestamp === 'number' ? timestamp * 1000 : new Date(timestamp).getTime();
-    const diffSec = Math.floor((Date.now() - t) / 1000);
-    if (diffSec < 5) return 'Just now';
-    if (diffSec < 60) return `${diffSec}s ago`;
-    const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return new Date(t).toLocaleDateString();
-  } catch (e) {
-    return 'Recently';
-  }
-}
-
-// Status Poller
-async function fetchStatus() {
-  try {
-    const res = await fetch('/api/status');
-    if (!res.ok) return;
-    const data = await res.json();
-
-    // 1. Surveillance Monitoring Mode
-    isMonitoring = data.monitoring.is_monitoring;
-    if (navSurveillanceBtn && navSurveillanceText) {
-      if (isMonitoring) {
-        navSurveillanceBtn.className = 'btn btn-surveillance-toggle active';
-        navSurveillanceText.textContent = 'SURVEILLANCE: ON';
-      } else {
-        navSurveillanceBtn.className = 'btn btn-surveillance-toggle inactive';
-        navSurveillanceText.textContent = 'SURVEILLANCE: OFF';
+    try {
+      const response = await fetch(endpoint, options);
+      if (response.status === 401) {
+        state.isAuthenticated = false;
+        updateAuthUI();
+        if (options.method && options.method !== 'GET') {
+          openPinModal();
+        }
       }
+      return response;
+    } catch (err) {
+      console.warn(`API Error [${endpoint}]:`, err);
+      throw err;
     }
-    if (toggleMonitoringBtn) {
-      if (isMonitoring) {
-        toggleMonitoringBtn.className = 'btn btn-danger';
-        toggleMonitoringBtn.textContent = '🛑 Stop Surveillance';
+  }
+
+  // =========================================================================
+  // Toast & Notifications
+  // =========================================================================
+  function showToast(message, type = 'info', duration = 3500) {
+    if (!DOM.toastContainer) return;
+    const toast = document.createElement('div');
+    toast.className = `soc-toast toast-${type}`;
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    if (type === 'warning') icon = '⚠️';
+    if (type === 'danger') icon = '🚨';
+
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+    DOM.toastContainer.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      toast.style.transition = 'all 0.25s ease';
+      setTimeout(() => toast.remove(), 250);
+    }, duration);
+  }
+
+  function showPushBanner(eventData) {
+    if (!DOM.pushBannerContainer) return;
+    const card = document.createElement('div');
+    card.className = 'push-card';
+    card.innerHTML = `
+      <div style="font-size: 1.4rem;">🚨</div>
+      <div>
+        <div style="font-weight: 700; color: #ffffff; font-size: 0.85rem;">${eventData.title || 'Security Incident Detected'}</div>
+        <div style="font-size: 0.75rem; color: #94a3b8;">${eventData.body || 'Motion detected in surveillance sector'}</div>
+      </div>
+    `;
+    card.onclick = () => {
+      navigateToView('incidents');
+      card.remove();
+    };
+    DOM.pushBannerContainer.appendChild(card);
+    setTimeout(() => {
+      card.style.opacity = '0';
+      card.style.transition = 'opacity 0.3s ease';
+      setTimeout(() => card.remove(), 300);
+    }, 6000);
+  }
+
+  // =========================================================================
+  // SPA Routing
+  // =========================================================================
+  function handleHashChange() {
+    let hash = window.location.hash.replace('#', '').trim();
+    if (!hash) hash = 'overview';
+    navigateToView(hash);
+  }
+
+  function navigateToView(viewName) {
+    state.currentView = viewName;
+    let found = false;
+
+    DOM.views.forEach(view => {
+      if (view.id === `view-${viewName}`) {
+        view.classList.add('active');
+        found = true;
       } else {
-        toggleMonitoringBtn.className = 'btn btn-primary';
-        toggleMonitoringBtn.textContent = '▶️ Start Surveillance';
+        view.classList.remove('active');
       }
-    }
-
-    // 2. Monitoring Uptime
-    if (uptimeText) {
-      uptimeText.textContent = data.monitoring.monitoring_uptime_str || '00:00:00';
-    }
-
-    // 3. Night Mode Status
-    const nm = data.night_mode || {};
-    updateNightModeButtons(nm.mode || 'auto');
-    if (nightActiveIndicator) {
-      const isNight = nm.is_night || (nm.active_mode === 'night');
-      const luxVal = nm.measured_brightness !== undefined ? `${Math.round(nm.measured_brightness)} lux` : '';
-      if (isNight) {
-        nightActiveIndicator.className = 'night-indicator-badge night-active';
-        nightActiveIndicator.textContent = `🌙 Night (${luxVal})`;
-      } else {
-        nightActiveIndicator.className = 'night-indicator-badge';
-        nightActiveIndicator.textContent = `☀️ Day (${luxVal})`;
-      }
-    }
-
-    // 4. Camera Status & Disconnection Warning
-    const cam = data.camera;
-    updatePhoneStreamLink(cam.stream_url);
-    const dcBannerText = document.getElementById('cameraDisconnectText');
-    const isReconfig = (cam.state === 'RECONFIGURING');
-
-    // Prevent repeated commands while reconfiguring
-    document.querySelectorAll('.btn-toggle-option, #resetControlsBtn').forEach(b => {
-      b.disabled = isReconfig;
-      if (isReconfig) b.classList.add('btn-disabled');
-      else b.classList.remove('btn-disabled');
     });
 
-    if (cam.state === 'ONLINE' || cam.state === 'CONNECTED') {
-      cameraPill.className = 'status-pill pill-active';
-      cameraPillText.textContent = `CAM: ONLINE (${cam.fps} FPS)`;
-      if (cameraDisconnectBanner) cameraDisconnectBanner.style.display = 'none';
-    } else if (cam.state === 'RECONFIGURING') {
-      cameraPill.className = 'status-pill pill-warning';
-      cameraPillText.textContent = `CAM: RECONFIGURING...`;
-      if (cameraDisconnectBanner) cameraDisconnectBanner.style.display = 'none';
-    } else if (cam.state === 'RECONNECTING') {
-      cameraPill.className = 'status-pill pill-warning';
-      cameraPillText.textContent = `CAM: RECONNECTING (Try #${cam.reconnect_attempts})`;
-      if (cameraDisconnectBanner) {
-        cameraDisconnectBanner.style.display = 'block';
-        if (dcBannerText) {
-          dcBannerText.innerHTML = `<strong>CAMERA RECONNECTING:</strong> Stream lost (${cam.disconnect_reason || 'reconnecting'}). Attempt #${cam.reconnect_attempts}...`;
-        }
-      }
-    } else if (cam.state === 'OFFLINE' || cam.state === 'DISCONNECTED') {
-      cameraPill.className = 'status-pill pill-danger';
-      cameraPillText.textContent = `CAM: OFFLINE`;
-      if (cameraDisconnectBanner) {
-        cameraDisconnectBanner.style.display = 'block';
-        if (dcBannerText) {
-          dcBannerText.innerHTML = `<strong>CAMERA OFFLINE:</strong> IP camera server unreachable at ${cam.stream_url}. Background recovery active.`;
-        }
-      }
-    } else {
-      cameraPill.className = 'status-pill pill-danger';
-      cameraPillText.textContent = `CAM: ERROR`;
-      if (cameraDisconnectBanner) {
-        cameraDisconnectBanner.style.display = 'block';
-        if (dcBannerText) {
-          dcBannerText.innerHTML = `<strong>CAMERA ERROR:</strong> ${cam.last_error || 'Stream error occurred.'}`;
-        }
-      }
+    if (!found && DOM.views.length > 0) {
+      DOM.views[0].classList.add('active');
+      state.currentView = 'overview';
     }
 
-    // 5. Telemetry
-    telemetryFps.textContent = `Cam: ${cam.fps} FPS`;
-    telemetryProcFps.textContent = `Proc: ${data.metrics.processing_fps} FPS`;
-    telemetryLatency.textContent = `Ping: ${cam.latency_ms} ms`;
-
-    // 6. Power
-    if (data.monitoring.power_inhibited) {
-      sleepPill.style.display = 'inline-flex';
-    } else {
-      sleepPill.style.display = 'none';
-    }
-
-    // 7. Network Banner
-    const net = data.network;
-    laptopLanIp.textContent = net.laptop_lan_ip;
-    phoneUrlText.textContent = net.phone_access_url;
-    phoneUrlLink.href = net.phone_access_url;
-
-    // 8. Today's Incidents & Last Detection
-    const todayCount = data.today_events_count !== undefined ? data.today_events_count : (data.summary.today_count || 0);
-    if (todayEventsCount) todayEventsCount.textContent = todayCount;
-    if (todayEventsBadge) todayEventsBadge.textContent = `${todayCount} Today`;
-
-    if (lastDetectionTimeText) {
-      if (data.monitoring.last_detection_timestamp) {
-        lastDetectionTimeText.textContent = formatRelativeTime(data.monitoring.last_detection_timestamp);
-      } else if (data.summary.latest_event) {
-        lastDetectionTimeText.textContent = formatRelativeTime(data.summary.latest_event.timestamp);
+    DOM.navItems.forEach(item => {
+      if (item.getAttribute('data-view') === state.currentView) {
+        item.classList.add('active');
       } else {
-        lastDetectionTimeText.textContent = 'None';
+        item.classList.remove('active');
+      }
+    });
+
+    const titles = {
+      overview: 'Command & Overview',
+      monitoring: 'Live Monitoring Console',
+      detection: 'Detection & Classification',
+      incidents: 'Incident History & Gallery',
+      audio: 'Phone Audio Monitoring',
+      automation: 'Flashlight Automation',
+      analytics: 'System Analytics',
+      security: 'Security & Access Control',
+      settings: 'System Configuration'
+    };
+    if (DOM.currentViewTitle) {
+      DOM.currentViewTitle.textContent = titles[state.currentView] || 'PySURVEILLANCE SOC';
+    }
+
+    // Close mobile menu if open
+    if (DOM.sidebar) {
+      DOM.sidebar.classList.remove('mobile-open');
+    }
+
+    // Lazy load or refresh view-specific data
+    if (state.currentView === 'incidents') {
+      fetchEvents();
+    } else if (state.currentView === 'analytics') {
+      fetchStorageStats();
+    } else if (state.currentView === 'settings') {
+      loadConfigSettings();
+    }
+  }
+
+  // =========================================================================
+  // Stream Management (MJPEG & Canvas Safe)
+  // =========================================================================
+  function initStreamPlayers() {
+    setStreamMode('mjpeg');
+
+    if (DOM.modeMjpegBtn) {
+      DOM.modeMjpegBtn.addEventListener('click', () => setStreamMode('mjpeg'));
+    }
+    if (DOM.modeCanvasBtn) {
+      DOM.modeCanvasBtn.addEventListener('click', () => setStreamMode('canvas'));
+    }
+
+    // Snapshot button actions
+    const triggerSnapshot = async () => {
+      try {
+        const res = await apiFetch('/api/stream/snapshot');
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `snapshot_${Date.now()}.jpg`;
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast('Snapshot downloaded successfully', 'success');
+        }
+      } catch (err) {
+        showToast('Failed to capture snapshot', 'danger');
+      }
+    };
+
+    if (DOM.snapshotBtn) DOM.snapshotBtn.addEventListener('click', triggerSnapshot);
+    if (DOM.overviewSnapshotBtn) DOM.overviewSnapshotBtn.addEventListener('click', triggerSnapshot);
+
+    // Fullscreen monitor actions
+    const toggleFullscreen = () => {
+      if (!document.fullscreenElement) {
+        const target = DOM.cinemaScreen || document.documentElement;
+        target.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+    if (DOM.toggleCinemaFullscreenBtn) DOM.toggleCinemaFullscreenBtn.addEventListener('click', toggleFullscreen);
+    if (DOM.fullscreenBtn) DOM.fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+    if (DOM.bannerRetryCamBtn) {
+      DOM.bannerRetryCamBtn.addEventListener('click', async () => {
+        showToast('Initiating camera reconnection...', 'info');
+        await apiFetch('/api/camera/reconnect', { method: 'POST' });
+        setStreamMode(state.streamMode);
+      });
+    }
+  }
+
+  function setStreamMode(mode) {
+    state.streamMode = mode;
+    if (DOM.modeMjpegBtn) DOM.modeMjpegBtn.classList.toggle('active', mode === 'mjpeg');
+    if (DOM.modeCanvasBtn) DOM.modeCanvasBtn.classList.toggle('active', mode === 'canvas');
+
+    if (mode === 'mjpeg') {
+      if (state.canvasTimer) {
+        clearInterval(state.canvasTimer);
+        state.canvasTimer = null;
+      }
+      if (DOM.liveCanvas) DOM.liveCanvas.style.display = 'none';
+      if (DOM.liveStreamImg) {
+        DOM.liveStreamImg.style.display = 'block';
+        DOM.liveStreamImg.src = `/api/stream/live?t=${Date.now()}`;
+      }
+      if (DOM.overviewStreamImg) {
+        DOM.overviewStreamImg.src = `/api/stream/live?t=${Date.now()}`;
+      }
+    } else if (mode === 'canvas') {
+      if (DOM.liveStreamImg) {
+        DOM.liveStreamImg.src = '';
+        DOM.liveStreamImg.style.display = 'none';
+      }
+      if (DOM.liveCanvas) DOM.liveCanvas.style.display = 'block';
+      startCanvasStream();
+    }
+  }
+
+  function startCanvasStream() {
+    if (state.canvasTimer) clearInterval(state.canvasTimer);
+    const canvas = DOM.liveCanvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = img.naturalWidth || 1280;
+      canvas.height = img.naturalHeight || 720;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    };
+
+    const fetchFrame = () => {
+      if (state.streamMode !== 'canvas') return;
+      img.src = `/api/stream/snapshot?t=${Date.now()}`;
+    };
+
+    fetchFrame();
+    state.canvasTimer = setInterval(fetchFrame, 250); // 4 FPS safe poll
+  }
+
+  // =========================================================================
+  // Telemetry Poller & UI Synchronizer
+  // =========================================================================
+  async function pollStatus() {
+    try {
+      const res = await apiFetch('/api/status');
+      if (!res.ok) return;
+      const data = await res.json();
+      state.lastStatus = data;
+      renderStatus(data);
+    } catch (err) {
+      console.warn('Status poll error:', err);
+    }
+  }
+
+  function renderStatus(s) {
+    if (!s) return;
+
+    const monitoring = s.monitoring || {};
+    const cam = s.camera || {};
+    const audio = s.microphone || s.audio || {};
+    const flash = s.flashlight || {};
+    const metrics = s.metrics || s.system || {};
+    const night = s.night_mode || {};
+
+    // Master armed state
+    state.isSurveillanceArmed = (s.surveillance_enabled !== undefined) ? !!s.surveillance_enabled : (monitoring.is_monitoring !== undefined ? !!monitoring.is_monitoring : true);
+    if (DOM.masterSurveillanceBtn) {
+      DOM.masterSurveillanceBtn.classList.toggle('active', state.isSurveillanceArmed);
+      DOM.masterSurveillanceBtn.classList.toggle('disarmed', !state.isSurveillanceArmed);
+    }
+    if (DOM.masterSurveillanceLabel) {
+      DOM.masterSurveillanceLabel.textContent = state.isSurveillanceArmed ? 'SURVEILLANCE: ARMED' : 'SURVEILLANCE: DISARMED';
+    }
+
+    // Uptime
+    if (DOM.uptimeText) {
+      if (monitoring.monitoring_uptime_str) {
+        DOM.uptimeText.textContent = monitoring.monitoring_uptime_str;
+      } else if (s.uptime_seconds !== undefined) {
+        const hrs = Math.floor(s.uptime_seconds / 3600);
+        const mins = Math.floor((s.uptime_seconds % 3600) / 60);
+        const secs = s.uptime_seconds % 60;
+        DOM.uptimeText.textContent = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
       }
     }
 
-    // 9. Storage Usage & Retention
-    const st = data.storage || {};
-    if (storageUsedMbText) storageUsedMbText.textContent = `${st.used_mb || 0} MB`;
-    if (storagePercentBadge) storagePercentBadge.textContent = `${st.storage_percent || 0}% Used`;
-    if (storageBar) storageBar.style.width = `${Math.min(100, st.storage_percent || 0)}%`;
-    if (storageImageCount) storageImageCount.textContent = st.image_count || 0;
-
-    // 10. Metrics (CPU & RAM)
-    const m = data.metrics;
-    metricCpu.textContent = `${m.cpu_percent}%`;
-    metricCpuBar.style.width = `${Math.min(100, m.cpu_percent)}%`;
-    if (m.cpu_percent >= 85) {
-      metricCpuBar.style.backgroundColor = 'var(--color-danger)';
-      metricCpuBadge.textContent = 'HIGH';
-      metricCpuBadge.className = 'badge text-danger';
-    } else {
-      metricCpuBar.style.backgroundColor = 'var(--color-brand)';
-      metricCpuBadge.textContent = 'Normal';
-      metricCpuBadge.className = 'badge';
+    // Camera Subsystem
+    const camOk = cam.is_online !== undefined ? !!cam.is_online : !!s.camera_connected;
+    if (DOM.cameraPill) {
+      DOM.cameraPill.className = `soc-pill ${camOk ? 'pill-success' : 'pill-danger'}`;
+    }
+    if (DOM.cameraPillText) {
+      DOM.cameraPillText.textContent = camOk ? 'CAM: CONNECTED' : 'CAM: DISCONNECTED';
+    }
+    if (DOM.overviewCamBadge) {
+      DOM.overviewCamBadge.className = `stat-badge ${camOk ? 'badge-success' : 'badge-danger'}`;
+      DOM.overviewCamBadge.textContent = camOk ? 'ONLINE' : 'DISCONNECTED';
+    }
+    if (DOM.cameraDisconnectBanner) {
+      DOM.cameraDisconnectBanner.style.display = camOk ? 'none' : 'flex';
     }
 
-    if (m.is_throttled) {
-      throttleStatus.textContent = '⚠️ Auto-throttle: ACTIVE (Pacing)';
-      throttleStatus.style.color = 'var(--color-warning)';
-    } else {
-      throttleStatus.textContent = 'Auto-throttle: Idle';
-      throttleStatus.style.color = 'var(--text-sub)';
+    const camFps = (cam.fps !== undefined ? cam.fps : (s.camera_fps || 0)).toFixed(1);
+    const procFps = (metrics.processing_fps !== undefined ? metrics.processing_fps : (s.processing_fps || 0)).toFixed(1);
+    const lat = (cam.latency_ms !== undefined ? cam.latency_ms : (s.camera_latency_ms || 0)).toFixed(0);
+
+    if (DOM.overviewFpsValue) DOM.overviewFpsValue.textContent = `${camFps} FPS`;
+    if (DOM.overviewHudFps) DOM.overviewHudFps.textContent = `${camFps} FPS`;
+    if (DOM.telemetryFps) DOM.telemetryFps.textContent = `Cam: ${camFps} FPS`;
+    if (DOM.telemetryProcFps) DOM.telemetryProcFps.textContent = `Proc: ${procFps} FPS`;
+    if (DOM.telemetryLatency) DOM.telemetryLatency.textContent = `Ping: ${lat} ms`;
+    if (DOM.liveResBadge && cam.last_working_resolution) {
+      DOM.liveResBadge.textContent = cam.last_working_resolution;
     }
 
-    metricRam.textContent = `${m.ram_percent}%`;
-    metricRamBar.style.width = `${m.ram_percent}%`;
-    metricRamMb.textContent = `${m.ram_used_mb} MB used / ${m.ram_total_mb} MB`;
-
-    // 11. Category Breakdown on Tabs
-    const sum = data.summary;
-    const counts = sum.category_counts || {};
-    if (countAll) countAll.textContent = sum.total_events || 0;
-    if (countPerson) countPerson.textContent = counts['Person'] || 0;
-    if (countBird) countBird.textContent = counts['Bird'] || 0;
-    if (countAnimal) countAnimal.textContent = (counts['Animal detected — species unconfirmed'] || 0) + (counts['Other recognized animal'] || 0);
-    if (countMonkey) countMonkey.textContent = counts['Possible monkey'] || 0;
-    if (countMotion) countMotion.textContent = counts['General motion'] || 0;
-
-    // 12. Latest Event Showcase Card
-    if (sum.latest_event) {
-      updateLatestEventShowcase(sum.latest_event);
+    // Phone Microphone Subsystem
+    const micOk = audio.is_connected !== undefined ? !!audio.is_connected : !!audio.connected;
+    if (DOM.micPill) {
+      DOM.micPill.className = `soc-pill ${micOk ? 'pill-success' : 'pill-danger'}`;
+    }
+    if (DOM.micPillText) {
+      DOM.micPillText.textContent = micOk ? 'PHONE MIC: STREAMING' : 'PHONE MIC: DISCONNECTED';
+    }
+    if (DOM.sidebarAudioDot) {
+      DOM.sidebarAudioDot.className = `nav-dot ${micOk ? 'connected' : ''}`;
+    }
+    if (DOM.overviewMicBadge) {
+      DOM.overviewMicBadge.className = `stat-badge ${micOk ? 'badge-success' : 'badge-danger'}`;
+      DOM.overviewMicBadge.textContent = micOk ? 'STREAMING' : 'OFFLINE';
+    }
+    if (DOM.audioStateBadge) {
+      DOM.audioStateBadge.className = `badge ${micOk ? 'badge-success' : 'badge-danger'}`;
+      DOM.audioStateBadge.textContent = micOk ? 'STREAMING (Redmi 10)' : 'DISCONNECTED';
     }
 
-    // 13. Flashlight & Microphone Telemetry
-    const fl = data.flashlight || {};
-    updateFlashlightUI(fl);
-
-    const mic = data.microphone || {};
-    updateMicrophoneUI(mic, fl);
-
-  } catch (err) {
-    console.debug('Status poll error:', err);
-  }
-}
-
-// Flashlight UI Updater
-function updateFlashlightUI(fl) {
-  if (!fl) return;
-  const mode = (fl.mode || 'auto').toLowerCase();
-  if (btnFlashlightAuto) btnFlashlightAuto.classList.toggle('active', mode === 'auto');
-  if (btnFlashlightManual) btnFlashlightManual.classList.toggle('active', mode === 'manual');
-  if (btnFlashlightOff) btnFlashlightOff.classList.toggle('active', mode === 'off');
-
-  if (flashlightStatusPill) {
-    if (fl.is_on) {
-      const trig = fl.active_trigger ? ` (${fl.active_trigger})` : '';
-      flashlightStatusPill.className = 'badge';
-      flashlightStatusPill.style.background = 'rgba(234, 179, 8, 0.25)';
-      flashlightStatusPill.style.color = '#fbbf24';
-      flashlightStatusPill.style.border = '1px solid #eab308';
-      flashlightStatusPill.textContent = `💡 ${mode.toUpperCase()} [ON${trig}]`;
-    } else {
-      flashlightStatusPill.className = 'badge';
-      flashlightStatusPill.style.background = '';
-      flashlightStatusPill.style.color = '';
-      flashlightStatusPill.style.border = '';
-      flashlightStatusPill.textContent = `⚫ ${mode.toUpperCase()} [OFF]`;
+    const rawRms = audio.current_rms !== undefined ? audio.current_rms : (audio.rms || 0);
+    const rms = rawRms.toFixed(1);
+    if (DOM.overviewMicRms) DOM.overviewMicRms.textContent = `${rms} RMS`;
+    if (DOM.audioRmsText) DOM.audioRmsText.textContent = `${rms} RMS`;
+    if (DOM.audioNoiseFloorText && audio.noise_floor !== undefined) {
+      DOM.audioNoiseFloorText.textContent = audio.noise_floor.toFixed(1);
     }
-  }
-
-  if (flashlightRequestedText) {
-    flashlightRequestedText.textContent = fl.requested_state ? 'ON' : 'OFF';
-  }
-  if (flashlightLightingText) {
-    flashlightLightingText.textContent = fl.lighting_condition || 'UNKNOWN';
-  }
-  if (flashlightMotionText) {
-    flashlightMotionText.textContent = fl.motion_detected ? 'DETECTED' : 'CLEAR';
-    flashlightMotionText.style.color = fl.motion_detected ? 'var(--color-danger)' : 'inherit';
-  }
-  if (flashlightCountdownText) {
-    const cd = fl.inactivity_countdown_sec !== undefined ? fl.inactivity_countdown_sec : (fl.is_on ? 15.0 : 0.0);
-    flashlightCountdownText.textContent = `${Number(cd).toFixed(1)}s`;
-  }
-  if (flashlightCountdownFill) {
-    const cd = fl.inactivity_countdown_sec !== undefined ? fl.inactivity_countdown_sec : (fl.is_on ? 15.0 : 0.0);
-    const limit = fl.inactivity_timeout_sec || 15.0;
-    const pct = Math.min(100, Math.max(0, Math.round((Number(cd) / limit) * 100)));
-    flashlightCountdownFill.style.width = `${pct}%`;
-  }
-  if (flashlightTriggerText) {
-    flashlightTriggerText.textContent = fl.active_trigger || fl.last_trigger || 'None';
-  }
-  if (flashlightResultText) {
-    flashlightResultText.textContent = fl.last_command_result || 'IDLE';
-    flashlightResultText.style.color = (fl.last_command_result && fl.last_command_result.startsWith('FAILED')) ? 'var(--color-danger)' : 'inherit';
-  }
-
-  // Update Event Log Table if available
-  if (flashlightLogTableBody && fl.event_log && Array.isArray(fl.event_log)) {
-    if (fl.event_log.length === 0) {
-      flashlightLogTableBody.innerHTML = '<tr><td colspan="4" class="text-sub" style="text-align: center;">No automation events recorded yet.</td></tr>';
-    } else {
-      flashlightLogTableBody.innerHTML = fl.event_log.slice().reverse().slice(0, 10).map(entry => {
-        const timeStr = entry.timestamp ? entry.timestamp.split(' ')[1] : '--';
-        const resColor = entry.result === 'SUCCESS' || entry.result === 'OK' ? '#34d399' : '#f87171';
-        return `<tr>
-          <td>${timeStr}</td>
-          <td>${entry.action || '--'}</td>
-          <td>${entry.details || entry.mode || '--'}</td>
-          <td style="color: ${resColor};">${entry.result || 'OK'}</td>
-        </tr>`;
-      }).join('');
+    if (DOM.audioSnrText && audio.snr !== undefined) {
+      DOM.audioSnrText.textContent = `${audio.snr.toFixed(2)}x`;
     }
-  }
 
-  // Preserve existing toggleTorchBtn display
-  if (toggleTorchBtn) {
-    toggleTorchBtn.classList.toggle('active', !!fl.is_on);
-    toggleTorchBtn.textContent = `🔦 Torch: ${fl.is_on ? 'ON' : 'OFF'}`;
-  }
-}
-
-// Microphone Audio Activity UI Updater
-function updateMicrophoneUI(mic, fl) {
-  if (!mic) return;
-  const active = !!mic.has_activity;
-  const rms = mic.current_rms || 0;
-  const snr = mic.snr || 1.0;
-  const pct = Math.min(100, Math.round((rms / 5000.0) * 100));
-
-  if (micPill && micPillText) {
-    if (mic.is_connected) {
-      micPill.className = 'status-pill pill-active';
-      micPillText.textContent = 'PHONE AUDIO: CONNECTED';
-    } else {
-      micPill.className = 'status-pill pill-danger';
-      micPillText.textContent = 'PHONE AUDIO: DISCONNECTED';
+    // Reactive Audio Meter Bar (0 - 5000 RMS scale)
+    if (DOM.audioMeterFill && rawRms !== undefined) {
+      const pct = Math.min(100, Math.max(0, (rawRms / 5000) * 100));
+      DOM.audioMeterFill.style.width = `${pct}%`;
     }
-  }
 
-  if (audioStateBadge) {
-    if (!mic.is_connected) {
-      audioStateBadge.className = 'badge badge-danger';
-      audioStateBadge.textContent = 'DISCONNECTED';
-    } else if (active) {
-      audioStateBadge.className = 'badge text-danger';
-      audioStateBadge.textContent = 'AUDIO ACTIVE';
-    } else {
-      audioStateBadge.className = 'badge badge-success';
-      audioStateBadge.textContent = 'SILENT (ONLINE)';
+    // Flashlight Automation Subsystem
+    const flashActive = flash.is_on !== undefined ? !!flash.is_on : !!flash.active;
+    const flashMode = flash.mode || (flash.auto_enabled ? 'auto' : (flashActive ? 'manual' : 'off'));
+    const flashAuto = flashMode === 'auto';
+
+    if (DOM.overviewFlashBadge) {
+      DOM.overviewFlashBadge.className = `stat-badge ${flashActive ? 'badge-warning' : 'badge-primary'}`;
+      DOM.overviewFlashBadge.textContent = flashAuto ? (flashActive ? 'AUTO [ON]' : 'AUTO [OFF]') : (flashActive ? 'MANUAL [ON]' : 'OFF');
     }
+    if (DOM.overviewFlashTrigger) {
+      DOM.overviewFlashTrigger.textContent = flash.active_trigger || flash.trigger_source || 'CAMERA';
+    }
+    if (DOM.flashlightStatusPill) {
+      DOM.flashlightStatusPill.className = `badge ${flashActive ? 'badge-warning' : 'badge-primary'}`;
+      DOM.flashlightStatusPill.textContent = flashAuto ? (flashActive ? 'AUTO [TORCH ON]' : 'AUTO [TORCH OFF]') : (flashActive ? 'FORCE ON' : 'FORCE OFF');
+    }
+    if (DOM.btnFlashlightAuto) DOM.btnFlashlightAuto.classList.toggle('active', flashAuto);
+    if (DOM.btnFlashlightManual) DOM.btnFlashlightManual.classList.toggle('active', flashMode === 'manual' || (!flashAuto && flashActive));
+    if (DOM.btnFlashlightOff) DOM.btnFlashlightOff.classList.toggle('active', flashMode === 'off' || (!flashAuto && !flashActive));
+
+    // 15-second Inactivity Countdown
+    const countdown = flash.inactivity_countdown_sec !== undefined ? flash.inactivity_countdown_sec : (flash.inactivity_seconds_left || 0);
+    const left = Math.max(0, countdown);
+    if (DOM.flashlightCountdownText) DOM.flashlightCountdownText.textContent = `${left.toFixed(1)}s`;
+    if (DOM.flashlightCountdownFill) {
+      const pct = Math.min(100, Math.max(0, (left / 15.0) * 100));
+      DOM.flashlightCountdownFill.style.width = `${pct}%`;
+    }
+
+    if (DOM.flashlightMotionText) DOM.flashlightMotionText.textContent = flash.motion_detected ? 'ACTIVE MOTION' : 'CLEAR';
+    if (DOM.flashlightTriggerText) DOM.flashlightTriggerText.textContent = flash.active_trigger || flash.trigger_source || 'None';
+    if (DOM.flashlightRequestedText) DOM.flashlightRequestedText.textContent = flashActive ? 'TORCH ON' : 'TORCH OFF';
+    if (DOM.flashlightResultText) DOM.flashlightResultText.textContent = flash.last_command_result || flash.last_action_result || 'IDLE';
+
+    // Flashlight Transition Log
+    const logItems = flash.event_log || flash.recent_actions || [];
+    if (DOM.flashlightLogTableBody && Array.isArray(logItems) && logItems.length > 0) {
+      renderFlashlightLog(logItems);
+    }
+
+    // System Resources (CPU & RAM)
+    const cpuPct = metrics.cpu_percent || 0;
+    const ramPct = metrics.ram_percent || metrics.memory_percent || 0;
+    const ramMb = metrics.ram_used_mb || metrics.memory_used_mb || 0;
+
+    if (DOM.metricCpu) DOM.metricCpu.textContent = `${cpuPct}%`;
+    if (DOM.metricCpuBar) DOM.metricCpuBar.style.width = `${cpuPct}%`;
+    if (DOM.metricRam) DOM.metricRam.textContent = `${ramPct}% (${ramMb.toFixed(0)} MB)`;
+    if (DOM.metricRamBar) DOM.metricRamBar.style.width = `${ramPct}%`;
+    if (DOM.metricRamMb) DOM.metricRamMb.textContent = `${ramMb.toFixed(0)} MB`;
+    if (DOM.throttleStatus) {
+      DOM.throttleStatus.textContent = metrics.is_throttled ? 'Active (Throttled > 85%)' : 'Normal (Throttle > 85%)';
+    }
+
+    // Detection Center Telemetry
+    if (night.threshold && DOM.detMotionThresh) DOM.detMotionThresh.textContent = night.threshold;
+    if (night.min_area && DOM.detMinArea) DOM.detMinArea.textContent = `${night.min_area} px²`;
+    if (night.active_mode && DOM.detActiveProfile) DOM.detActiveProfile.textContent = night.active_mode.toUpperCase();
+    if (night.measured_brightness && DOM.detMeasuredLux) DOM.detMeasuredLux.textContent = `${night.measured_brightness.toFixed(1)} lux`;
+
+    // Database Status
+    const dbOk = s.database_healthy !== false;
+    if (DOM.dbPill) DOM.dbPill.className = `soc-pill ${dbOk ? 'pill-info' : 'pill-danger'}`;
+    if (DOM.dbStatusText) DOM.dbStatusText.textContent = dbOk ? 'DB: HEALTHY' : 'DB: ERROR';
+  }
+    if (DOM.btnFlashlightManual) DOM.btnFlashlightManual.classList.toggle('active', !flashAuto && flashActive);
+    if (DOM.btnFlashlightOff) DOM.btnFlashlightOff.classList.toggle('active', !flashAuto && !flashActive);
+
+    // 15-second Inactivity Countdown
+    if (flash.inactivity_seconds_left !== undefined) {
+      const left = Math.max(0, flash.inactivity_seconds_left);
+      if (DOM.flashlightCountdownText) DOM.flashlightCountdownText.textContent = `${left.toFixed(1)}s`;
+      if (DOM.flashlightCountdownFill) {
+        const pct = Math.min(100, Math.max(0, (left / 15.0) * 100));
+        DOM.flashlightCountdownFill.style.width = `${pct}%`;
+      }
+    }
+
+    if (DOM.flashlightMotionText) DOM.flashlightMotionText.textContent = flash.motion_detected ? 'ACTIVE MOTION' : 'CLEAR';
+    if (DOM.flashlightTriggerText) DOM.flashlightTriggerText.textContent = flash.trigger_source || 'None';
+    if (DOM.flashlightRequestedText) DOM.flashlightRequestedText.textContent = flashActive ? 'TORCH ON' : 'TORCH OFF';
+    if (DOM.flashlightResultText) DOM.flashlightResultText.textContent = flash.last_action_result || 'IDLE';
+
+    // Flashlight Transition Log
+    if (DOM.flashlightLogTableBody && Array.isArray(flash.recent_actions)) {
+      renderFlashlightLog(flash.recent_actions);
+    }
+
+    // System Resources (CPU & RAM)
+    const sys = s.system || {};
+    if (DOM.metricCpu) DOM.metricCpu.textContent = `${sys.cpu_percent || 0}%`;
+    if (DOM.metricCpuBar) DOM.metricCpuBar.style.width = `${sys.cpu_percent || 0}%`;
+    if (DOM.metricRam) DOM.metricRam.textContent = `${sys.memory_percent || 0}%`;
+    if (DOM.metricRamBar) DOM.metricRamBar.style.width = `${sys.memory_percent || 0}%`;
+    if (DOM.metricRamMb && sys.memory_used_mb) DOM.metricRamMb.textContent = `${sys.memory_used_mb.toFixed(0)} MB`;
+
+    // Database Status
+    const dbOk = s.database_healthy !== false;
+    if (DOM.dbPill) DOM.dbPill.className = `soc-pill ${dbOk ? 'pill-info' : 'pill-danger'}`;
+    if (DOM.dbStatusText) DOM.dbStatusText.textContent = dbOk ? 'DB: HEALTHY' : 'DB: ERROR';
   }
 
-  if (audioMeterFill) {
-    audioMeterFill.style.width = `${pct}%`;
+  function renderFlashlightLog(actions) {
+    if (!actions || actions.length === 0) return;
+    DOM.flashlightLogTableBody.innerHTML = actions.slice(-15).reverse().map(act => `
+      <tr>
+        <td style="font-family: monospace;">${act.timestamp ? act.timestamp.split('T')[1]?.split('.')[0] || act.timestamp : '--'}</td>
+        <td><strong>${act.action || act.event || 'Transition'}</strong></td>
+        <td>${act.details || act.reason || '--'}</td>
+        <td><span class="badge ${act.result === 'success' || act.result === 'ok' ? 'badge-success' : 'badge-primary'}">${act.result || 'OK'}</span></td>
+      </tr>
+    `).join('');
   }
 
-  if (audioRmsText) {
-    audioRmsText.textContent = `${Number(rms).toFixed(1)} RMS`;
-  }
+  // =========================================================================
+  // Incident History & Gallery
+  // =========================================================================
+  async function fetchEvents() {
+    try {
+      const url = state.selectedCategory && state.selectedCategory !== 'all'
+        ? `/api/events?category=${encodeURIComponent(state.selectedCategory)}&limit=60`
+        : `/api/events?limit=60`;
+      const res = await apiFetch(url);
+      if (!res.ok) return;
+      const data = await res.json();
+      state.events = Array.isArray(data) ? data : (data.events || []);
 
-  if (audioNoiseFloorText) {
-    audioNoiseFloorText.textContent = `${Number(mic.noise_floor || 1200).toFixed(1)}`;
-  }
-
-  if (audioSnrText) {
-    audioSnrText.textContent = `${Number(snr).toFixed(2)}x`;
-  }
-
-  if (audioFormatText && mic.sample_rate) {
-    audioFormatText.textContent = `${mic.sample_rate / 1000}kHz ${mic.channels === 1 ? 'Mono' : 'Stereo'}`;
-  }
-
-  if (audioStreamUrlText && mic.stream_url) {
-    audioStreamUrlText.textContent = mic.stream_url;
-  }
-
-  if (metricAudioVal) metricAudioVal.textContent = `${pct}%`;
-  if (metricAudioBar) {
-    metricAudioBar.style.width = `${pct}%`;
-    metricAudioBar.style.backgroundColor = active ? 'var(--color-danger)' : (rms > 2000 ? '#f59e0b' : '#38bdf8');
-  }
-
-  if (metricAudioBadge) {
-    if (active) {
-      metricAudioBadge.className = 'badge text-danger';
-      metricAudioBadge.textContent = '🔊 SOUND DETECTED';
-    } else if (!mic.is_connected) {
-      metricAudioBadge.className = 'badge text-sub';
-      metricAudioBadge.textContent = 'Disconnected';
-    } else {
-      metricAudioBadge.className = 'badge';
-      metricAudioBadge.textContent = 'Ambient / Silent';
+      updateEventCounts();
+      renderEventsList();
+      updateLatestOverviewIncident();
+    } catch (err) {
+      console.warn('Failed to fetch events:', err);
     }
   }
 
-  if (metricAudioSub) {
-    const flState = fl && fl.is_on ? `Torch ON (${fl.active_trigger || 'Active'})` : `Torch Auto`;
-    metricAudioSub.textContent = `Floor: ${mic.noise_floor || '--'} | SNR: ${snr}x | ${flState}`;
-  }
+  function updateEventCounts() {
+    if (DOM.sidebarIncidentCount) {
+      DOM.sidebarIncidentCount.textContent = state.events.length;
+    }
+    if (DOM.todayEventsCount) {
+      DOM.todayEventsCount.textContent = state.events.length;
+    }
+    if (DOM.todayIncidentsBadge) {
+      DOM.todayIncidentsBadge.textContent = `${state.events.length} Recorded`;
+    }
 
-  if (audioStatusText) {
-    audioStatusText.textContent = active ? '🔊 SOUND DETECTED' : (rms > 1800 ? 'Moderate' : 'Silent');
-    audioStatusText.style.color = active ? 'var(--color-danger)' : 'inherit';
-  }
-}
-
-async function setFlashlightMode(mode) {
-  try {
-    const res = await apiFetch('/api/flashlight/mode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }),
+    let counts = { all: state.events.length, Person: 0, Bird: 0, Animal: 0, Monkey: 0, Motion: 0 };
+    state.events.forEach(ev => {
+      const cat = ev.category || 'Motion';
+      if (counts[cat] !== undefined) counts[cat]++;
     });
-    const data = await res.json();
-    if (res.ok) {
-      updateFlashlightUI(data);
-      showToast(`Flashlight Mode: ${mode.toUpperCase()}`, 'info');
-      fetchStatus();
-    } else {
-      showToast(data.detail || 'Failed to update flashlight mode', 'danger');
+
+    if (DOM.countAll) DOM.countAll.textContent = counts.all;
+    if (DOM.countPerson) DOM.countPerson.textContent = counts.Person;
+    if (DOM.countBird) DOM.countBird.textContent = counts.Bird;
+    if (DOM.countAnimal) DOM.countAnimal.textContent = counts.Animal;
+    if (DOM.countMonkey) DOM.countMonkey.textContent = counts.Monkey;
+    if (DOM.countMotion) DOM.countMotion.textContent = counts.Motion;
+  }
+
+  function renderEventsList() {
+    if (!DOM.eventsList) return;
+    DOM.eventsList.className = `incident-stream ${state.incidentViewMode}-layout`;
+
+    if (state.events.length === 0) {
+      DOM.eventsList.innerHTML = `<div class="empty-state">No surveillance incidents found for category "${state.selectedCategory}".</div>`;
+      return;
     }
-  } catch (err) {
-    showToast('Network error setting flashlight mode', 'danger');
-  }
-}
 
-// Helper: Format Image URL for date-organized paths
-function formatImageUrl(imagePath) {
-  if (!imagePath) return '/api/stream/snapshot';
-  const norm = imagePath.replace(/\\/g, '/');
-  const parts = norm.split('storage/events/');
-  if (parts.length > 1) {
-    return `/api/storage/${parts[1]}`;
-  }
-  return `/api/storage/${norm.split('/').pop()}`;
-}
+    DOM.eventsList.innerHTML = state.events.map(ev => {
+      const imgPath = ev.snapshot_path || ev.initial_snapshot_path || ev.final_snapshot_path || '/static/favicon.svg';
+      const imgSrc = imgPath.startsWith('/') ? imgPath : `/api/storage/${imgPath.replace(/^storage\//, '')}`;
+      const conf = ev.confidence ? `${(ev.confidence * 100).toFixed(0)}%` : '--%';
+      const cat = ev.category || 'Motion';
+      const timeStr = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '--:--:--';
+      const dateStr = ev.timestamp ? new Date(ev.timestamp).toLocaleDateString() : '';
 
-// Night Mode UI Button Switcher
-function updateNightModeButtons(mode) {
-  if (btnNightDay) btnNightDay.classList.toggle('active', mode === 'off');
-  if (btnNightNight) btnNightNight.classList.toggle('active', mode === 'on');
-  if (btnNightAuto) btnNightAuto.classList.toggle('active', mode === 'auto');
-}
-
-// Update Latest Event Showcase Card
-function updateLatestEventShowcase(evt) {
-  if (!evt) return;
-  latestEventCache = evt;
-
-  if (latestEventTitle) latestEventTitle.textContent = evt.label || evt.category;
-  if (latestEventTimeBadge) latestEventTimeBadge.textContent = new Date(evt.timestamp).toLocaleTimeString();
-  if (latestEventImg) {
-    latestEventImg.src = formatImageUrl(evt.image_path);
-  }
-
-  const cat = (evt.category || 'General motion').toLowerCase();
-  let badgeClass = 'cat-motion';
-  if (cat.includes('person')) badgeClass = 'cat-person';
-  else if (cat.includes('monkey')) badgeClass = 'cat-monkey';
-  else if (cat.includes('bird')) badgeClass = 'cat-bird';
-  else if (cat.includes('animal')) badgeClass = 'cat-animal';
-
-  if (latestEventCategoryBadge) {
-    latestEventCategoryBadge.className = `badge ${badgeClass}`;
-    latestEventCategoryBadge.textContent = evt.category;
-  }
-
-  const isNight = evt.details && evt.details.night_mode && evt.details.night_mode.is_night;
-  if (latestEventNightBadge) {
-    latestEventNightBadge.textContent = isNight ? '🌙 Night Mode' : '☀️ Day Mode';
-    latestEventNightBadge.className = isNight ? 'badge badge-night-tag' : 'badge';
-  }
-
-  if (latestEventLabelText) latestEventLabelText.textContent = evt.label || evt.category;
-  if (latestEventConfidence) {
-    const conf = Math.round((evt.confidence || 0) * 100);
-    latestEventConfidence.textContent = `${conf}%`;
-  }
-  if (latestEventAgeText) {
-    latestEventAgeText.textContent = formatRelativeTime(evt.timestamp);
-  }
-
-  const tags = (evt.details && evt.details.tags) || ['INITIAL'];
-  const lastTag = tags[tags.length - 1] || 'INITIAL';
-  if (latestEventTagBadge) {
-    latestEventTagBadge.textContent = lastTag.toUpperCase();
-  }
-
-  if (viewLatestEventBtn) {
-    viewLatestEventBtn.onclick = () => openEventDetail(evt.id);
-  }
-}
-
-// Event List Fetcher
-async function fetchEvents() {
-  try {
-    const url = currentFilter === 'all' ? '/api/events?limit=40' : `/api/events?category=${encodeURIComponent(currentFilter)}&limit=40`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const data = await res.json();
-    renderEvents(data.events || []);
-  } catch (err) {
-    console.debug('Event poll error:', err);
-  }
-}
-
-function renderEvents(events) {
-  if (events.length === 0) {
-    eventsList.innerHTML = '<div class="empty-state">No incidents recorded for this filter. Field is peaceful.</div>';
-    return;
-  }
-
-  if (currentViewMode === 'timeline') {
-    renderTimelineView(events);
-  } else {
-    renderGalleryView(events);
-  }
-}
-
-// ── TIMELINE VIEW: Grouped Events with Initial / Change / Final Thumbnails ──
-function renderTimelineView(events) {
-  eventsList.className = 'events-timeline-container';
-  eventsList.innerHTML = events.map(evt => {
-    let catClass = 'cat-motion';
-    const c = evt.category.toLowerCase();
-    if (c.includes('person')) catClass = 'cat-person';
-    else if (c.includes('bird')) catClass = 'cat-bird';
-    else if (c.includes('animal')) catClass = 'cat-animal';
-    else if (c.includes('monkey')) catClass = 'cat-monkey';
-
-    const timeFormatted = new Date(evt.timestamp).toLocaleTimeString();
-    const relativeTime = formatRelativeTime(evt.timestamp);
-    const confPercent = Math.round((evt.confidence || 0) * 100);
-    const duration = evt.details && evt.details.session_duration_sec !== undefined ? `${evt.details.session_duration_sec}s` : 'Active';
-
-    // Collect all thumbnails in this grouped event session
-    const images = (evt.details && evt.details.images) || [
-      { path: evt.image_path, tag: 'initial', label: evt.label }
-    ];
-
-    const thumbsHtml = images.map(img => {
-      const src = formatImageUrl(img.path);
-      const tag = img.tag || 'initial';
       return `
-        <div class="timeline-thumb-box" onclick="event.stopPropagation(); openImagePreview('${src}', '${escapeHtml(img.label || evt.label)}', '${tag}')" title="${tag.toUpperCase()} frame">
-          <img src="${src}" alt="${tag}" loading="lazy" onerror="this.src='/api/stream/snapshot'">
-          <span class="timeline-tag-pill tag-${tag}">${tag.toUpperCase()}</span>
+        <div class="incident-card" data-event-id="${ev.id}">
+          <div class="incident-thumb-box" onclick="window.PySurveillance.inspectEvent(${ev.id})">
+            <img src="${imgSrc}" alt="Incident ${ev.id}" loading="lazy" onerror="this.src='/static/favicon.svg'">
+            ${ev.initial_snapshot_path && ev.final_snapshot_path ? '<span class="incident-tag-pill">2-FRAME</span>' : ''}
+          </div>
+          <div class="incident-info-box">
+            <div class="incident-title-row">
+              <span class="badge ${getCategoryBadgeClass(cat)}">${cat}</span>
+              <strong>${ev.label || cat}</strong>
+              <span style="font-size: 0.75rem; color: #94a3b8;">${conf}</span>
+            </div>
+            <div class="incident-meta-row">
+              <span>🕒 ${timeStr} ${dateStr}</span>
+              <span>ID: #${ev.id}</span>
+            </div>
+          </div>
+          <div class="incident-card-actions">
+            <button class="btn btn-outline btn-sm" onclick="window.PySurveillance.inspectEvent(${ev.id})">🔍 Inspect</button>
+            <button class="btn btn-outline btn-danger btn-sm" onclick="window.PySurveillance.deleteEvent(${ev.id})">🗑️</button>
+          </div>
         </div>
       `;
     }).join('');
-
-    const statusBadge = evt.status === 'active'
-      ? '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981;">● IN PROGRESS</span>'
-      : `<span class="timeline-duration-badge">⏱️ ${duration}</span>`;
-
-    return `
-      <div class="timeline-card" onclick="openEventDetail(${evt.id})">
-        <div class="timeline-card-header">
-          <div class="timeline-title-row">
-            <span class="event-cat-badge ${catClass}">${evt.category}</span>
-            <strong class="timeline-title">${escapeHtml(evt.label)}</strong>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            ${statusBadge}
-            <span class="timeline-session-badge">#${evt.id}</span>
-          </div>
-        </div>
-
-        <!-- Thumbnails Strip: Initial, Change, Final -->
-        <div class="timeline-thumbs-strip">
-          ${thumbsHtml}
-        </div>
-
-        <div class="timeline-footer">
-          <span>🕒 ${timeFormatted} (${relativeTime})</span>
-          <span>Conf: <strong>${confPercent}%</strong> • ${images.length} frame(s)</span>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-// ── GALLERY VIEW: Grid of Images ──
-function renderGalleryView(events) {
-  eventsList.className = 'events-grid';
-  eventsList.innerHTML = events.map(evt => {
-    let catClass = 'cat-motion';
-    const c = evt.category.toLowerCase();
-    if (c.includes('person')) catClass = 'cat-person';
-    else if (c.includes('bird')) catClass = 'cat-bird';
-    else if (c.includes('animal')) catClass = 'cat-animal';
-    else if (c.includes('monkey')) catClass = 'cat-monkey';
-
-    const imgSrc = formatImageUrl(evt.image_path);
-    const timeFormatted = new Date(evt.timestamp).toLocaleTimeString();
-
-    return `
-      <div class="event-item" onclick="openEventDetail(${evt.id})">
-        <img class="event-thumb" src="${imgSrc}" alt="${evt.label}" loading="lazy" onerror="this.src='/api/stream/snapshot'">
-        <div class="event-meta">
-          <span class="event-cat-badge ${catClass}">${evt.category}</span>
-          <div class="event-title">${escapeHtml(evt.label)}</div>
-          <div class="event-time">${timeFormatted}</div>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-// Modal Helpers
-function openModal(modal) {
-  modal.classList.add('active');
-}
-function closeModal(modal) {
-  modal.classList.remove('active');
-}
-
-document.querySelectorAll('.modal-close').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    const targetId = btn.getAttribute('data-close');
-    const modal = document.getElementById(targetId);
-    if (modal) closeModal(modal);
-  });
-});
-
-window.addEventListener('click', (e) => {
-  if (e.target.classList.contains('modal')) {
-    closeModal(e.target);
   }
-});
 
-// Image Preview Helper (for Timeline Thumbnails)
-function openImagePreview(src, label, tag) {
-  document.getElementById('eventDetailTitle').textContent = `Snapshot: ${tag ? tag.toUpperCase() : 'FRAME'}`;
-  document.getElementById('eventDetailImg').src = src;
-  document.getElementById('eventDetailCategory').textContent = tag ? tag.toUpperCase() : 'Snapshot';
-  document.getElementById('eventDetailTimestamp').textContent = new Date().toLocaleString();
-  document.getElementById('eventDetailConfidence').textContent = '--';
-  document.getElementById('eventDetailLabel').textContent = label || 'Surveillance Frame';
-  document.getElementById('eventDetailJson').textContent = JSON.stringify({ snapshot_type: tag, image_url: src }, null, 2);
-  const dlBtn = document.getElementById('downloadEventImgBtn');
-  if (dlBtn) {
-    dlBtn.href = src;
-    dlBtn.download = src.split('/').pop() || 'snapshot.jpg';
+  function getCategoryBadgeClass(cat) {
+    if (cat === 'Person') return 'badge-danger';
+    if (cat === 'Animal' || cat === 'Monkey') return 'badge-warning';
+    if (cat === 'Bird') return 'badge-success';
+    return 'badge-primary';
   }
-  openModal(eventDetailModal);
-}
 
-// Event Detail Modal
-async function openEventDetail(eventId) {
-  currentSelectedEventId = eventId;
-  try {
-    const res = await fetch(`/api/events/${eventId}`);
-    if (!res.ok) return;
-    const evt = await res.json();
+  function updateLatestOverviewIncident() {
+    if (state.events.length === 0) return;
+    const latest = state.events[0];
 
-    const imgUrl = formatImageUrl(evt.image_path);
-    document.getElementById('eventDetailTitle').textContent = `Incident Record #${evt.id}`;
-    document.getElementById('eventDetailImg').src = imgUrl;
-    document.getElementById('eventDetailCategory').textContent = evt.category;
-    document.getElementById('eventDetailTimestamp').textContent = new Date(evt.timestamp).toLocaleString();
-    document.getElementById('eventDetailConfidence').textContent = `${(evt.confidence * 100).toFixed(1)}%`;
-    document.getElementById('eventDetailLabel').textContent = evt.label;
-    document.getElementById('eventDetailJson').textContent = JSON.stringify(evt.details || {}, null, 2);
+    const imgPath = latest.snapshot_path || latest.final_snapshot_path || latest.initial_snapshot_path || '/static/favicon.svg';
+    const imgSrc = imgPath.startsWith('/') ? imgPath : `/api/storage/${imgPath.replace(/^storage\//, '')}`;
 
-    const dlBtn = document.getElementById('downloadEventImgBtn');
-    if (dlBtn) {
-      dlBtn.href = imgUrl;
-      const filename = evt.image_path ? evt.image_path.split('/').pop() : 'event.jpg';
-      dlBtn.download = filename;
+    if (DOM.latestEventImg) DOM.latestEventImg.src = imgSrc;
+    if (DOM.latestEventLabelText) DOM.latestEventLabelText.textContent = latest.label || latest.category || 'Motion';
+    if (DOM.latestEventConfidence) DOM.latestEventConfidence.textContent = latest.confidence ? `${(latest.confidence * 100).toFixed(0)}%` : '--%';
+    if (DOM.latestEventCategoryBadge) {
+      DOM.latestEventCategoryBadge.className = `badge ${getCategoryBadgeClass(latest.category)}`;
+      DOM.latestEventCategoryBadge.textContent = latest.category || 'Motion';
     }
-
-    openModal(eventDetailModal);
-  } catch (err) {
-    showToast('Failed to load event details', 'danger');
-  }
-}
-
-// Delete Event
-document.getElementById('deleteEventBtn').addEventListener('click', async () => {
-  if (!currentSelectedEventId) return;
-  if (!confirm(`Are you sure you want to delete incident #${currentSelectedEventId}?`)) return;
-
-  try {
-    const res = await apiFetch(`/api/events/${currentSelectedEventId}`, { method: 'DELETE' });
-    if (res.ok) {
-      showToast('Incident deleted', 'info');
-      closeModal(eventDetailModal);
-      fetchEvents();
-      fetchStatus();
-    } else {
-      const err = await res.json();
-      showToast(err.detail || 'Delete failed', 'danger');
+    if (DOM.latestEventTimeBadge && latest.timestamp) {
+      const t = new Date(latest.timestamp);
+      DOM.latestEventTimeBadge.textContent = t.toLocaleTimeString();
+      if (DOM.lastDetectionTimeText) DOM.lastDetectionTimeText.textContent = t.toLocaleTimeString();
     }
-  } catch (err) {
-    showToast('Error deleting event', 'danger');
-  }
-});
-
-// --- HTML Escaping Helper ---
-function escapeHtml(text) {
-  if (!text) return '';
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-  return String(text).replace(/[&<>"']/g, m => map[m]);
-}
-
-// --- Force Push Messages Management ---
-function updatePushUI() {
-  if (togglePushNavBtn) {
-    togglePushNavBtn.classList.toggle('active', pushEnabled);
-    togglePushNavBtn.classList.toggle('muted', !pushEnabled);
-  }
-  if (pushNavLabel) {
-    pushNavLabel.textContent = pushEnabled ? 'Push: ON' : 'Push: OFF';
-  }
-  const cfgEnabled = document.getElementById('cfgPushEnabled');
-  if (cfgEnabled) cfgEnabled.checked = pushEnabled;
-  const cfgDesktop = document.getElementById('cfgPushDesktop');
-  if (cfgDesktop) cfgDesktop.checked = pushDesktop;
-  const cfgAudio = document.getElementById('cfgPushAudio');
-  if (cfgAudio) cfgAudio.checked = pushAudio;
-}
-
-async function togglePush(enable = null) {
-  if (enable === null) {
-    pushEnabled = !pushEnabled;
-  } else {
-    pushEnabled = !!enable;
+    if (DOM.viewLatestEventBtn) {
+      DOM.viewLatestEventBtn.onclick = () => inspectEvent(latest.id);
+    }
   }
 
-  localStorage.setItem('wheat_watch_push_enabled', pushEnabled ? 'true' : 'false');
-  updatePushUI();
-
-  if (pushEnabled) {
-    // Request Desktop Notification permission if supported
-    if ('Notification' in window && Notification.permission === 'default') {
-      try {
-        await Notification.requestPermission();
-      } catch (e) {
-        console.debug('Notification permission request error:', e);
+  async function inspectEvent(id) {
+    state.activeEventId = id;
+    try {
+      const res = await apiFetch(`/api/events/${id}`);
+      if (!res.ok) {
+        showToast('Failed to load incident details', 'danger');
+        return;
       }
-    }
-    showToast('🔔 Force push messages ENABLED for this browser', 'info');
-  } else {
-    showToast('🔕 Force push messages DISABLED for this browser', 'info');
-  }
+      const ev = await res.json();
 
-  // Synchronize state with backend
-  try {
-    await fetch('/api/push/toggle', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: pushEnabled }),
-    });
-  } catch (e) {
-    console.debug('Failed to sync push toggle with server:', e);
-  }
-}
+      if (DOM.eventDetailTitle) DOM.eventDetailTitle.textContent = `Incident #${ev.id} — ${ev.category || 'Event'}`;
+      const imgPath = ev.snapshot_path || ev.final_snapshot_path || ev.initial_snapshot_path || '';
+      const imgSrc = imgPath.startsWith('/') ? imgPath : `/api/storage/${imgPath.replace(/^storage\//, '')}`;
 
-// Web Audio API Synthesizer (Works on all mobile & desktop browsers)
-function playBrowserChime(category) {
-  if (!pushAudio) return;
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    if (ctx.state === 'suspended') {
-      ctx.resume();
-    }
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-
-    const isUrgent = category === 'Person' || (category && category.toLowerCase().includes('monkey'));
-    const startFreq = isUrgent ? 880 : 587.33;  // A5 or D5
-    const endFreq = isUrgent ? 1174.66 : 880;    // D6 or A5
-
-    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + 0.15);
-
-    gain.gain.setValueAtTime(0.25, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start();
-    osc.stop(ctx.currentTime + 0.45);
-  } catch (e) {
-    console.debug('Browser audio chime error:', e);
-  }
-}
-
-// Native Desktop / OS Notification
-function triggerDesktopNotification(event) {
-  if (!pushEnabled || !pushDesktop) return;
-  if (!('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
-
-  const cat = event.category || 'Surveillance Alert';
-  const label = event.label || cat;
-  const conf = Math.round((event.confidence || 0) * 100);
-  const timeStr = event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-
-  try {
-    const notif = new Notification(`🌾 PySURVEILLANCE: ${cat}`, {
-      body: `${label}\nConfidence: ${conf}% • ${timeStr}`,
-      tag: `pysurveillance-${event.id || Date.now()}`,
-      requireInteraction: cat === 'Person' || cat.toLowerCase().includes('monkey'),
-    });
-
-    notif.onclick = () => {
-      window.focus();
-      if (event.id) openEventDetail(event.id);
-      notif.close();
-    };
-  } catch (e) {
-    console.debug('Desktop notification error:', e);
-  }
-}
-
-// In-App Force Push Floating Sliding Banner
-function showPushBanner(event) {
-  if (!pushEnabled) return;
-  const container = document.getElementById('pushBannerContainer');
-  if (!container) return;
-
-  // Limit visible stack to 3 items
-  while (container.children.length >= 3) {
-    container.firstChild.remove();
-  }
-
-  const cat = (event.category || 'General motion').toLowerCase();
-  let catClass = 'push-banner-motion';
-  let badgeClass = 'cat-motion';
-  let catIcon = '🏃';
-
-  if (cat.includes('person')) {
-    catClass = 'push-banner-person';
-    badgeClass = 'cat-person';
-    catIcon = '🚨';
-  } else if (cat.includes('monkey')) {
-    catClass = 'push-banner-monkey';
-    badgeClass = 'cat-monkey';
-    catIcon = '⚠️';
-  } else if (cat.includes('bird')) {
-    catClass = 'push-banner-bird';
-    badgeClass = 'cat-bird';
-    catIcon = '🦅';
-  } else if (cat.includes('animal')) {
-    catClass = 'push-banner-animal';
-    badgeClass = 'cat-animal';
-    catIcon = '🐾';
-  }
-
-  const banner = document.createElement('div');
-  banner.className = `push-banner ${catClass}`;
-
-  const imgSrc = formatImageUrl(event.image_path);
-  const timeStr = event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-  const confPercent = Math.round((event.confidence || 0) * 100);
-
-  banner.innerHTML = `
-    <div class="push-banner-thumb-box">
-      <img src="${imgSrc}" class="push-banner-thumb" alt="Incident Snapshot" onerror="this.src='/api/stream/snapshot'">
-    </div>
-    <div class="push-banner-content">
-      <div class="push-banner-top">
-        <span class="badge ${badgeClass} push-banner-badge">${catIcon} ${escapeHtml(event.category)}</span>
-        <span class="push-banner-time">${timeStr}</span>
-        <button class="push-banner-close" title="Dismiss">&times;</button>
-      </div>
-      <div class="push-banner-title">${escapeHtml(event.label || event.category)}</div>
-      <div class="push-banner-meta">Confidence: <strong>${confPercent}%</strong></div>
-      <div class="push-banner-actions">
-        ${event.id ? `<button class="push-banner-btn-view" data-event-id="${event.id}">🔍 View Incident</button>` : ''}
-      </div>
-    </div>
-    <div class="push-banner-progress" style="animation-duration: 8s;"></div>
-  `;
-
-  const closeBtn = banner.querySelector('.push-banner-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dismissBanner(banner);
-    });
-  }
-
-  const viewBtn = banner.querySelector('.push-banner-btn-view');
-  if (viewBtn && event.id) {
-    viewBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openEventDetail(event.id);
-      dismissBanner(banner);
-    });
-  }
-
-  container.appendChild(banner);
-
-  const timer = setTimeout(() => {
-    dismissBanner(banner);
-  }, 8000);
-  banner._dismissTimer = timer;
-}
-
-function dismissBanner(banner) {
-  if (banner._dismissed) return;
-  banner._dismissed = true;
-  clearTimeout(banner._dismissTimer);
-  banner.classList.add('dismissing');
-  setTimeout(() => banner.remove(), 300);
-}
-
-// Prepend event card into gallery dynamically
-function prependEventCard(evt) {
-  if (!eventsList) return;
-  const empty = eventsList.querySelector('.empty-state');
-  if (empty) empty.remove();
-
-  if (document.getElementById(`evt-card-${evt.id}`)) return;
-
-  let catClass = 'cat-unknown';
-  const c = (evt.category || '').toLowerCase();
-  if (c.includes('person')) catClass = 'cat-person';
-  else if (c.includes('bird')) catClass = 'cat-bird';
-  else if (c.includes('animal')) catClass = 'cat-animal';
-  else if (c.includes('monkey')) catClass = 'cat-monkey';
-  else if (c.includes('motion')) catClass = 'cat-motion';
-
-  const filename = (evt.image_path || '').split('/').pop();
-  const timeFormatted = evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-
-  const card = document.createElement('div');
-  card.id = `evt-card-${evt.id}`;
-  card.className = 'event-item';
-  card.onclick = () => openEventDetail(evt.id);
-  card.innerHTML = `
-    <img class="event-thumb" src="/api/storage/${filename}" alt="${escapeHtml(evt.label)}" loading="lazy" onerror="this.src='/api/stream/snapshot'">
-    <div class="event-meta">
-      <span class="event-cat-badge ${catClass}">${escapeHtml(evt.category)}</span>
-      <div class="event-title">${escapeHtml(evt.label)}</div>
-      <div class="event-time">${timeFormatted}</div>
-    </div>
-  `;
-  eventsList.prepend(card);
-}
-
-// Handle incoming real-time push detection
-function handlePushDetection(event) {
-  if (currentFilter === 'all' || currentFilter === event.category) {
-    prependEventCard(event);
-  }
-
-  if (pushEnabled) {
-    showPushBanner(event);
-    triggerDesktopNotification(event);
-    playBrowserChime(event.category);
-  }
-}
-
-// Send test push message
-async function sendTestPush() {
-  try {
-    showToast('Dispatching test push message...', 'info');
-    const res = await fetch('/api/push/test', { method: 'POST' });
-    const data = await res.json();
-    if (res.ok) {
-      showToast('✓ Test push dispatched to all connected browsers!', 'info');
-    } else {
-      showToast(data.message || 'Test push failed', 'warning');
-    }
-  } catch (err) {
-    showToast('Failed to trigger test push', 'danger');
-  }
-}
-
-// SSE Connection Listener
-function initPushStream() {
-  if (pushEventSource) {
-    try { pushEventSource.close(); } catch (e) {}
-  }
-
-  pushEventSource = new EventSource('/api/push/stream');
-
-  pushEventSource.addEventListener('handshake', (e) => {
-    console.log('SSE Push stream connected:', e.data);
-  });
-
-  pushEventSource.addEventListener('detection', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      handlePushDetection(data);
-      updateLatestEventShowcase(data);
-      fetchEvents();
-      fetchStatus();
-    } catch (err) {
-      console.debug('Error parsing push detection event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('detection_update', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      updateLatestEventShowcase(data);
-      fetchEvents();
-    } catch (err) {
-      console.debug('Error parsing detection_update event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('event_completed', (e) => {
-    try {
-      fetchEvents();
-      fetchStatus();
-    } catch (err) {
-      console.debug('Error parsing event_completed event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('camera_disconnected', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      if (cameraDisconnectBanner) cameraDisconnectBanner.style.display = 'block';
-      showToast('⚠️ Camera disconnected! Real-time stream lost. Auto-reconnecting...', 'danger');
-      playBrowserChime('Camera');
-    } catch (err) {
-      console.debug('Error parsing camera_disconnected event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('camera_connected', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      if (cameraDisconnectBanner) cameraDisconnectBanner.style.display = 'none';
-      showToast('✓ Camera online! Surveillance active.', 'info');
-      fetchStatus();
-    } catch (err) {
-      console.debug('Error parsing camera_connected event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('camera_reconfiguring', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      cameraPill.className = 'status-pill pill-warning';
-      cameraPillText.textContent = 'CAM: RECONFIGURING...';
-      if (cameraDisconnectBanner) cameraDisconnectBanner.style.display = 'none';
-      showToast('Camera reconfiguring... Applying settings safely.', 'info');
-    } catch (err) {
-      console.debug('Error parsing camera_reconfiguring event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('camera_rollback', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      showToast(`⚠️ Reconfiguration failed. Rolled back to ${data.restored_resolution || 'previous resolution'}`, 'warning');
-      fetchStatus();
-    } catch (err) {
-      console.debug('Error parsing camera_rollback event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('night_mode', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      updateNightModeButtons(data.mode);
-      fetchStatus();
-    } catch (err) {
-      console.debug('Error parsing night_mode event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('surveillance_mode', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      isMonitoring = !!data.active;
-      fetchStatus();
-    } catch (err) {
-      console.debug('Error parsing surveillance_mode event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('flashlight', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      updateFlashlightUI(data);
-    } catch (err) {
-      console.debug('Error parsing flashlight event:', err);
-    }
-  });
-
-  pushEventSource.addEventListener('alarm', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      if (pushEnabled) {
-        showToast(`🔊 Laptop Alarm Sounded: ${data.category}`, 'warning');
+      if (DOM.eventDetailImg) DOM.eventDetailImg.src = imgSrc;
+      if (DOM.eventDetailCategory) {
+        DOM.eventDetailCategory.className = `badge ${getCategoryBadgeClass(ev.category)}`;
+        DOM.eventDetailCategory.textContent = ev.category || 'Motion';
       }
+      if (DOM.eventDetailTimestamp) DOM.eventDetailTimestamp.textContent = ev.timestamp ? new Date(ev.timestamp).toLocaleString() : '--';
+      if (DOM.eventDetailConfidence) DOM.eventDetailConfidence.textContent = ev.confidence ? `${(ev.confidence * 100).toFixed(1)}%` : '--%';
+      if (DOM.eventDetailLabel) DOM.eventDetailLabel.textContent = ev.label || '--';
+      if (DOM.eventDetailJson) DOM.eventDetailJson.textContent = JSON.stringify(ev, null, 2);
+
+      if (DOM.downloadEventImgBtn) {
+        DOM.downloadEventImgBtn.href = imgSrc;
+        DOM.downloadEventImgBtn.download = `incident_${ev.id}.jpg`;
+      }
+      if (DOM.deleteEventBtn) {
+        DOM.deleteEventBtn.onclick = () => deleteEvent(ev.id);
+      }
+
+      openModal(DOM.eventDetailModal);
     } catch (err) {
-      console.debug('Error parsing push alarm event:', err);
+      showToast('Error opening incident modal', 'danger');
     }
-  });
+  }
 
-  pushEventSource.addEventListener('push_config', (e) => {
+  async function deleteEvent(id) {
+    if (!confirm(`Delete incident record #${id}?`)) return;
     try {
-      const data = JSON.parse(e.data);
-      if (data.enabled !== undefined) {
-        pushEnabled = !!data.enabled;
-        localStorage.setItem('wheat_watch_push_enabled', pushEnabled ? 'true' : 'false');
-      }
-      if (data.desktop_notifications !== undefined) {
-        pushDesktop = !!data.desktop_notifications;
-        localStorage.setItem('wheat_watch_push_desktop', pushDesktop ? 'true' : 'false');
-      }
-      if (data.browser_audio !== undefined) {
-        pushAudio = !!data.browser_audio;
-        localStorage.setItem('wheat_watch_push_audio', pushAudio ? 'true' : 'false');
-      }
-      updatePushUI();
-    } catch (err) {
-      console.debug('Error updating push config:', err);
-    }
-  });
-
-  pushEventSource.onerror = (err) => {
-    console.debug('SSE Push stream reconnecting...', err);
-  };
-}
-
-// Wire push toggle buttons
-if (togglePushNavBtn) {
-  togglePushNavBtn.addEventListener('click', () => togglePush());
-}
-if (testPushBtn) {
-  testPushBtn.addEventListener('click', sendTestPush);
-}
-if (cfgTestPushBtn) {
-  cfgTestPushBtn.addEventListener('click', sendTestPush);
-}
-
-const cfgPushEnabledElem = document.getElementById('cfgPushEnabled');
-if (cfgPushEnabledElem) {
-  cfgPushEnabledElem.addEventListener('change', (e) => {
-    pushEnabled = e.target.checked;
-    localStorage.setItem('wheat_watch_push_enabled', pushEnabled ? 'true' : 'false');
-    updatePushUI();
-  });
-}
-const cfgPushDesktopElem = document.getElementById('cfgPushDesktop');
-if (cfgPushDesktopElem) {
-  cfgPushDesktopElem.addEventListener('change', (e) => {
-    pushDesktop = e.target.checked;
-    localStorage.setItem('wheat_watch_push_desktop', pushDesktop ? 'true' : 'false');
-  });
-}
-const cfgPushAudioElem = document.getElementById('cfgPushAudio');
-if (cfgPushAudioElem) {
-  cfgPushAudioElem.addEventListener('change', (e) => {
-    pushAudio = e.target.checked;
-    localStorage.setItem('wheat_watch_push_audio', pushAudio ? 'true' : 'false');
-  });
-}
-
-// --- Live Image Quality & Exposure Controls ---
-const sliderQuality = document.getElementById('sliderQuality');
-const sliderQualityVal = document.getElementById('sliderQualityVal');
-const sliderGamma = document.getElementById('sliderGamma');
-const sliderGammaVal = document.getElementById('sliderGammaVal');
-const sliderBrightness = document.getElementById('sliderBrightness');
-const sliderBrightnessVal = document.getElementById('sliderBrightnessVal');
-const sliderContrast = document.getElementById('sliderContrast');
-const sliderContrastVal = document.getElementById('sliderContrastVal');
-const liveResBadge = document.getElementById('liveResBadge');
-
-const toggleHdrBtn = document.getElementById('toggleHdrBtn');
-const toggleTorchBtn = document.getElementById('toggleTorchBtn');
-const toggleNightBtn = document.getElementById('toggleNightBtn');
-const resetControlsBtn = document.getElementById('resetControlsBtn');
-
-let activeHdr = false;
-let activeTorch = false;
-let activeNight = false;
-let controlDebounceTimer = null;
-
-async function sendControlUpdate(updates, immediate = false) {
-  clearTimeout(controlDebounceTimer);
-  const doSend = async () => {
-    try {
-      const res = await fetch('/api/camera/controls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader() },
-        body: JSON.stringify(updates),
-      });
-      return await res.json();
-    } catch (e) {
-      console.debug('Failed to update controls:', e);
-      return null;
-    }
-  };
-
-  if (immediate) {
-    return await doSend();
-  } else {
-    controlDebounceTimer = setTimeout(doSend, 120);
-    return null;
-  }
-}
-
-async function loadImageControls() {
-  try {
-    const res = await fetch('/api/camera/controls');
-    if (!res.ok) return;
-    const data = await res.json();
-    const ctrl = data.controls || {};
-
-    if (sliderQuality) {
-      sliderQuality.value = ctrl.quality || 95;
-      sliderQualityVal.textContent = `${sliderQuality.value}%`;
-    }
-    if (sliderGamma) {
-      sliderGamma.value = ctrl.gamma || 0.75;
-      sliderGammaVal.textContent = `${sliderGamma.value}x`;
-    }
-    if (sliderBrightness) {
-      sliderBrightness.value = ctrl.brightness !== undefined ? ctrl.brightness : -15;
-      sliderBrightnessVal.textContent = sliderBrightness.value;
-    }
-    if (sliderContrast) {
-      sliderContrast.value = ctrl.contrast || 1.15;
-      sliderContrastVal.textContent = `${sliderContrast.value}x`;
-    }
-
-    const curRes = ctrl.resolution || '1280x720';
-    if (liveResBadge) liveResBadge.textContent = curRes.includes('1080') ? '1080p FHD' : (curRes.includes('720') ? '720p HD' : '480p SD');
-    document.querySelectorAll('.btn-toggle-option').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('data-res') === curRes);
-    });
-
-    activeHdr = !!ctrl.auto_hdr;
-    if (toggleHdrBtn) {
-      toggleHdrBtn.classList.toggle('active', activeHdr);
-      toggleHdrBtn.textContent = `Auto-HDR: ${activeHdr ? 'ON' : 'OFF'}`;
-    }
-
-    activeTorch = !!ctrl.torch;
-    if (toggleTorchBtn) {
-      toggleTorchBtn.classList.toggle('active', activeTorch);
-      toggleTorchBtn.textContent = `🔦 Torch: ${activeTorch ? 'ON' : 'OFF'}`;
-    }
-
-    activeNight = !!ctrl.night_vision;
-    if (toggleNightBtn) {
-      toggleNightBtn.classList.toggle('active', activeNight);
-      toggleNightBtn.textContent = `🌙 Night Vision: ${activeNight ? 'ON' : 'OFF'}`;
-    }
-  } catch (err) {
-    console.debug('Error loading image controls:', err);
-  }
-}
-
-// Slider Event Listeners
-if (sliderQuality) {
-  sliderQuality.addEventListener('input', () => {
-    sliderQualityVal.textContent = `${sliderQuality.value}%`;
-  });
-  sliderQuality.addEventListener('change', () => {
-    sendControlUpdate({ quality: parseInt(sliderQuality.value, 10) }, true);
-    showToast(`Camera Quality set to ${sliderQuality.value}%`, 'info');
-  });
-}
-
-if (sliderGamma) {
-  sliderGamma.addEventListener('input', () => {
-    sliderGammaVal.textContent = `${sliderGamma.value}x`;
-    sendControlUpdate({ gamma: parseFloat(sliderGamma.value) });
-  });
-}
-
-if (sliderBrightness) {
-  sliderBrightness.addEventListener('input', () => {
-    sliderBrightnessVal.textContent = sliderBrightness.value;
-    sendControlUpdate({ brightness: parseInt(sliderBrightness.value, 10) });
-  });
-}
-
-if (sliderContrast) {
-  sliderContrast.addEventListener('input', () => {
-    sliderContrastVal.textContent = `${sliderContrast.value}x`;
-    sendControlUpdate({ contrast: parseFloat(sliderContrast.value) });
-  });
-}
-
-// Resolution Switcher Buttons
-document.querySelectorAll('.btn-toggle-option').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const res = btn.getAttribute('data-res');
-    document.querySelectorAll('.btn-toggle-option').forEach(b => {
-      b.classList.remove('active');
-      b.disabled = true;
-    });
-    btn.classList.add('active');
-    if (liveResBadge) liveResBadge.textContent = res.includes('1080') ? '1080p FHD' : (res.includes('720') ? '720p HD' : '480p SD');
-    showToast(`Reconfiguring camera resolution to ${res}...`, 'info');
-    try {
-      const resp = await sendControlUpdate({ resolution: res }, true);
-      if (resp && resp.success) {
-        showToast(`✓ Camera resolution set to ${res} (stream verified)`, 'info');
-      } else if (resp && resp.message) {
-        showToast(resp.message, 'warning');
-      }
-    } catch (err) {
-      console.debug('Resolution update failed:', err);
-    } finally {
-      document.querySelectorAll('.btn-toggle-option').forEach(b => b.disabled = false);
-      loadImageControls();
-      fetchStatus();
-    }
-  });
-});
-
-// Hardware Toggles
-if (toggleHdrBtn) {
-  toggleHdrBtn.addEventListener('click', () => {
-    activeHdr = !activeHdr;
-    toggleHdrBtn.classList.toggle('active', activeHdr);
-    toggleHdrBtn.textContent = `Auto-HDR: ${activeHdr ? 'ON' : 'OFF'}`;
-    sendControlUpdate({ auto_hdr: activeHdr }, true);
-    showToast(`Auto-HDR Tone Mapping: ${activeHdr ? 'ENABLED' : 'DISABLED'}`, 'info');
-  });
-}
-
-if (toggleTorchBtn) {
-  toggleTorchBtn.addEventListener('click', () => {
-    activeTorch = !activeTorch;
-    toggleTorchBtn.classList.toggle('active', activeTorch);
-    toggleTorchBtn.textContent = `🔦 Torch: ${activeTorch ? 'ON' : 'OFF'}`;
-    sendControlUpdate({ torch: activeTorch }, true);
-    showToast(`Phone Flashlight: ${activeTorch ? 'ON' : 'OFF'}`, 'info');
-  });
-}
-
-if (toggleNightBtn) {
-  toggleNightBtn.addEventListener('click', () => {
-    activeNight = !activeNight;
-    toggleNightBtn.classList.toggle('active', activeNight);
-    toggleNightBtn.textContent = `🌙 Night Vision: ${activeNight ? 'ON' : 'OFF'}`;
-    sendControlUpdate({ night_vision: activeNight }, true);
-    showToast(`Night Vision Mode: ${activeNight ? 'ON' : 'OFF'}`, 'info');
-  });
-}
-
-if (resetControlsBtn) {
-  resetControlsBtn.addEventListener('click', async () => {
-    resetControlsBtn.disabled = true;
-    showToast('Resetting camera settings to defaults and verifying stream...', 'info');
-    try {
-      const res = await fetch('/api/camera/reset', {
-        method: 'POST',
-        headers: authHeader(),
-      });
-      const data = await res.json();
-      if (data && data.success) {
-        showToast('✓ Controls reset and stream verified at 1280x720', 'info');
-      } else {
-        showToast(`Reset notice: ${(data && data.message) || 'Stream check completed'}`, 'warning');
-      }
-    } catch (err) {
-      console.debug('Reset controls failed:', err);
-      showToast('Error resetting camera controls.', 'danger');
-    } finally {
-      resetControlsBtn.disabled = false;
-      loadImageControls();
-      fetchStatus();
-    }
-  });
-}
-
-// Load controls on startup
-loadImageControls();
-
-// Filter Tabs
-document.querySelectorAll('.filter-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    currentFilter = tab.getAttribute('data-filter');
-    fetchEvents();
-  });
-});
-
-// --- Surveillance & Night Mode Handlers ---
-async function toggleSurveillance(targetState = null) {
-  try {
-    const payload = targetState !== null ? { active: targetState } : { active: !isMonitoring };
-    const res = await apiFetch('/api/surveillance/toggle', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      isMonitoring = data.is_monitoring;
-      showToast(data.message, 'info');
-      fetchStatus();
-    } else {
-      showToast(data.detail || 'Failed to toggle surveillance', 'danger');
-    }
-  } catch (err) {
-    showToast('Connection error toggling surveillance', 'danger');
-  }
-}
-
-async function setNightMode(mode) {
-  try {
-    const res = await apiFetch('/api/night_mode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      updateNightModeButtons(data.mode);
-      const modeLabel = data.mode === 'auto' ? 'AUTO (Adaptive Lux)' : (data.mode === 'on' ? 'NIGHT (High Noise Tolerance)' : 'DAY (Normal)');
-      showToast(`🌙 Night Mode set to: ${modeLabel}`, 'info');
-      fetchStatus();
-    } else {
-      showToast(data.detail || 'Failed to update night mode', 'danger');
-    }
-  } catch (err) {
-    showToast('Failed to switch night mode', 'danger');
-  }
-}
-
-function setViewMode(mode) {
-  currentViewMode = mode;
-  localStorage.setItem('wheat_watch_view_mode', mode);
-  if (viewTabTimeline) viewTabTimeline.classList.toggle('active', mode === 'timeline');
-  if (viewTabGallery) viewTabGallery.classList.toggle('active', mode === 'gallery');
-  fetchEvents();
-}
-
-async function purgeStorage() {
-  if (!confirm('Run storage cleanup now? Expired snapshots exceeding 14-day retention will be deleted. Active event snapshots are permanently protected.')) return;
-  try {
-    showToast('Enforcing storage retention cleanup...', 'info');
-    const res = await apiFetch('/api/storage/cleanup', { method: 'POST' });
-    const data = await res.json();
-    if (res.ok) {
-      const del = (data.cleanup && data.cleanup.deleted_count) || 0;
-      showToast(`✓ Storage Cleanup: ${del} expired snapshot(s) deleted. Disk usage: ${data.stats.used_mb} MB`, 'info');
-      fetchStatus();
-      fetchEvents();
-    } else {
-      showToast(data.detail || 'Storage cleanup failed', 'danger');
-    }
-  } catch (err) {
-    showToast('Error during storage retention cleanup', 'danger');
-  }
-}
-
-// Controls
-if (navSurveillanceBtn) {
-  navSurveillanceBtn.addEventListener('click', () => toggleSurveillance());
-}
-if (toggleMonitoringBtn) {
-  toggleMonitoringBtn.addEventListener('click', () => toggleSurveillance());
-}
-if (btnNightDay) {
-  btnNightDay.addEventListener('click', () => setNightMode('off'));
-}
-if (btnNightNight) {
-  btnNightNight.addEventListener('click', () => setNightMode('on'));
-}
-if (btnNightAuto) {
-  btnNightAuto.addEventListener('click', () => setNightMode('auto'));
-}
-if (btnFlashlightAuto) {
-  btnFlashlightAuto.addEventListener('click', () => setFlashlightMode('auto'));
-}
-if (btnFlashlightManual) {
-  btnFlashlightManual.addEventListener('click', () => setFlashlightMode('manual'));
-}
-if (btnFlashlightOff) {
-  btnFlashlightOff.addEventListener('click', () => setFlashlightMode('off'));
-}
-if (viewTabTimeline) {
-  viewTabTimeline.addEventListener('click', () => setViewMode('timeline'));
-}
-if (viewTabGallery) {
-  viewTabGallery.addEventListener('click', () => setViewMode('gallery'));
-}
-if (purgeStorageBtn) {
-  purgeStorageBtn.addEventListener('click', purgeStorage);
-}
-if (bannerRetryCamBtn) {
-  bannerRetryCamBtn.addEventListener('click', async () => {
-    showToast('Re-initializing camera connection...', 'info');
-    try {
-      await fetch('/api/camera/reconnect', { method: 'POST' });
-      fetchStatus();
-      showToast('Camera reconnection signal sent.', 'info');
-    } catch (e) {
-      showToast('Camera check failed', 'danger');
-    }
-  });
-}
-
-testAlarmBtn.addEventListener('click', async () => {
-  try {
-    const res = await apiFetch('/api/alarm/test', { method: 'POST' });
-    const data = await res.json();
-    if (data.success) {
-      showToast('🔊 Laptop alarm sounded successfully!', 'info');
-    } else {
-      showToast(data.message || 'Alarm test failed', 'warning');
-    }
-  } catch (err) {
-    showToast('Error triggering test alarm', 'danger');
-  }
-});
-
-snapshotBtn.addEventListener('click', () => {
-  const win = window.open('/api/stream/snapshot', '_blank');
-});
-
-// QR Modal
-document.getElementById('qrBtn').addEventListener('click', async () => {
-  try {
-    const res = await fetch('/api/qr');
-    const svgText = await res.text();
-    document.getElementById('qrCodeContainer').innerHTML = svgText;
-    document.getElementById('qrUrlDisplay').textContent = phoneUrlLink.href;
-    openModal(qrModal);
-  } catch (err) {
-    showToast('Failed to load QR code', 'danger');
-  }
-});
-
-// Copy URL
-document.getElementById('copyUrlBtn').addEventListener('click', () => {
-  navigator.clipboard.writeText(phoneUrlLink.href).then(() => {
-    showToast('Phone URL copied to clipboard!', 'info');
-  });
-});
-
-// PIN Form
-document.getElementById('pinBtn').addEventListener('click', () => openModal(pinModal));
-document.getElementById('pinForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const pin = document.getElementById('pinInput').value.trim();
-  const errDiv = document.getElementById('pinError');
-  errDiv.textContent = '';
-
-  try {
-    const res = await fetch('/api/auth/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin }),
-    });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      currentToken = data.token;
-      currentCsrfToken = data.csrf_token || '';
-      localStorage.setItem('wheat_watch_token', currentToken);
-      if (currentCsrfToken) {
-        localStorage.setItem('wheat_watch_csrf', currentCsrfToken);
-      }
-      pinStatusText.textContent = '(Unlocked)';
-      closeModal(pinModal);
-      showToast('Dashboard unlocked with PIN!', 'info');
-    } else {
-      errDiv.textContent = data.message || 'Invalid PIN';
-    }
-  } catch (err) {
-    errDiv.textContent = 'Server verification error';
-  }
-});
-
-// Settings Modal & Loading
-document.getElementById('settingsBtn').addEventListener('click', async () => {
-  try {
-    const res = await fetch('/api/config');
-    const cfg = await res.json();
-
-    document.getElementById('cfgPhoneIp').value = cfg.camera.phone_ip;
-    document.getElementById('cfgPhonePort').value = cfg.camera.phone_port;
-    document.getElementById('cfgVideoEp').value = cfg.camera.video_endpoint;
-    document.getElementById('cfgSnapshotEp').value = cfg.camera.snapshot_endpoint;
-
-    document.getElementById('cfgMotionFps').value = cfg.pipeline.motion_fps;
-    document.getElementById('cfgAiFps').value = cfg.pipeline.ai_fps;
-    document.getElementById('cfgMotionThresh').value = cfg.pipeline.motion_threshold;
-    document.getElementById('cfgConfidence').value = cfg.pipeline.detection_confidence;
-    document.getElementById('cfgAutoThrottle').checked = cfg.pipeline.auto_throttle_cpu;
-
-    document.getElementById('cfgSoundEnabled').checked = cfg.alarm.sound_enabled;
-    if (document.getElementById('cfgAlarmMotion')) {
-      document.getElementById('cfgAlarmMotion').checked = !!cfg.alarm.alarm_on_general_motion;
-    }
-    if (document.getElementById('cfgAlarmUnknown')) {
-      document.getElementById('cfgAlarmUnknown').checked = !!cfg.alarm.alarm_on_unknown_objects;
-    }
-    document.getElementById('cfgCdPerson').value = cfg.alarm.cooldowns['Person'] || 30;
-    document.getElementById('cfgCdAnimal').value = cfg.alarm.cooldowns['Animal detected — species unconfirmed'] || 25;
-    document.getElementById('cfgCdMotion').value = cfg.alarm.cooldowns['General motion'] || 15;
-
-    const pushCfg = cfg.push || {};
-    if (document.getElementById('cfgPushEnabled')) {
-      document.getElementById('cfgPushEnabled').checked = pushCfg.enabled !== undefined ? pushCfg.enabled : pushEnabled;
-    }
-    if (document.getElementById('cfgPushDesktop')) {
-      document.getElementById('cfgPushDesktop').checked = pushCfg.desktop_notifications !== undefined ? pushCfg.desktop_notifications : pushDesktop;
-    }
-    if (document.getElementById('cfgPushAudio')) {
-      document.getElementById('cfgPushAudio').checked = pushCfg.browser_audio !== undefined ? pushCfg.browser_audio : pushAudio;
-    }
-    if (document.getElementById('cfgPushMotion')) {
-      document.getElementById('cfgPushMotion').checked = !!pushCfg.push_on_general_motion;
-    }
-    if (document.getElementById('cfgPushUnknown')) {
-      document.getElementById('cfgPushUnknown').checked = !!pushCfg.push_on_unknown_objects;
-    }
-
-    // Dedicated Night Surveillance Config
-    const nm = cfg.night_mode || {};
-    if (document.getElementById('cfgNightModeSelect')) {
-      document.getElementById('cfgNightModeSelect').value = nm.mode || 'auto';
-    }
-    if (document.getElementById('cfgNightAutoThresh')) {
-      document.getElementById('cfgNightAutoThresh').value = nm.auto_night_lux_threshold || 45;
-    }
-    const dayProf = (nm.profiles && nm.profiles.day) || {};
-    const nightProf = (nm.profiles && nm.profiles.night) || {};
-    if (document.getElementById('cfgDayThresh')) {
-      document.getElementById('cfgDayThresh').value = dayProf.threshold || 25;
-    }
-    if (document.getElementById('cfgNightThresh')) {
-      document.getElementById('cfgNightThresh').value = nightProf.threshold || 34;
-    }
-    if (document.getElementById('cfgDayMinArea')) {
-      document.getElementById('cfgDayMinArea').value = dayProf.min_motion_area || 250;
-    }
-    if (document.getElementById('cfgNightMinArea')) {
-      document.getElementById('cfgNightMinArea').value = nightProf.min_motion_area || 350;
-    }
-
-    // Storage Retention Config
-    const stor = cfg.storage || {};
-    if (document.getElementById('cfgRetentionDays')) {
-      document.getElementById('cfgRetentionDays').value = stor.retention_days || 14;
-    }
-    if (document.getElementById('cfgMaxStorageMb')) {
-      document.getElementById('cfgMaxStorageMb').value = stor.max_storage_mb || 2048;
-    }
-
-    // Event Grouping Deduplication Config
-    const grp = cfg.event_grouping || {};
-    if (document.getElementById('cfgSessionTimeout')) {
-      document.getElementById('cfgSessionTimeout').value = grp.session_timeout_sec || 4;
-    }
-    if (document.getElementById('cfgCapChange')) {
-      document.getElementById('cfgCapChange').checked = grp.capture_change !== false;
-    }
-    if (document.getElementById('cfgCapFinal')) {
-      document.getElementById('cfgCapFinal').checked = grp.capture_final !== false;
-    }
-
-    // Flashlight & Audio Detection Config
-    const flCfg = cfg.flashlight || {};
-    if (document.getElementById('cfgFlashlightMode')) {
-      document.getElementById('cfgFlashlightMode').value = flCfg.mode || 'auto';
-    }
-    if (document.getElementById('cfgFlashlightLux')) {
-      document.getElementById('cfgFlashlightLux').value = flCfg.lux_threshold || 45;
-    }
-    if (document.getElementById('cfgFlashlightMinOn')) {
-      document.getElementById('cfgFlashlightMinOn').value = flCfg.min_on_time_sec || 10;
-    }
-    if (document.getElementById('cfgFlashlightMaxOn')) {
-      document.getElementById('cfgFlashlightMaxOn').value = flCfg.max_on_time_sec || 120;
-    }
-    if (document.getElementById('cfgFlashlightInactivity')) {
-      document.getElementById('cfgFlashlightInactivity').value = flCfg.inactivity_timeout_sec || 15;
-    }
-
-    const audCfg = cfg.audio_detection || {};
-    if (document.getElementById('cfgAudioEnabled')) {
-      document.getElementById('cfgAudioEnabled').checked = audCfg.enabled !== false;
-    }
-    if (document.getElementById('cfgAudioSpike')) {
-      document.getElementById('cfgAudioSpike').value = audCfg.spike_multiplier || 3.0;
-    }
-    if (document.getElementById('cfgAudioSustained')) {
-      document.getElementById('cfgAudioSustained').value = audCfg.sustained_threshold_rms || 2500;
-    }
-
-    document.getElementById('cfgPreventSleep').checked = cfg.power.prevent_sleep;
-
-    openModal(settingsModal);
-  } catch (err) {
-    showToast('Failed to load settings', 'danger');
-  }
-});
-
-// Camera Test inside Settings
-document.getElementById('cfgTestCamBtn').addEventListener('click', async () => {
-  const statusSpan = document.getElementById('cfgCamTestStatus');
-  statusSpan.textContent = 'Testing connection...';
-  statusSpan.style.color = '#38bdf8';
-
-  const payload = {
-    phone_ip: document.getElementById('cfgPhoneIp').value.trim(),
-    phone_port: parseInt(document.getElementById('cfgPhonePort').value, 10),
-    video_endpoint: document.getElementById('cfgVideoEp').value.trim(),
-    snapshot_endpoint: document.getElementById('cfgSnapshotEp').value.trim(),
-  };
-
-  try {
-    const res = await fetch('/api/camera/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const result = await res.json();
-    if (result.success) {
-      statusSpan.textContent = `✓ ${result.message}`;
-      statusSpan.style.color = '#34d399';
-    } else {
-      statusSpan.textContent = `✗ ${result.message}`;
-      statusSpan.style.color = '#f87171';
-    }
-  } catch (err) {
-    statusSpan.textContent = `✗ Request failed: ${err.message}`;
-    statusSpan.style.color = '#f87171';
-  }
-});
-
-// Quick Test Camera button on main view
-testCamBtn.addEventListener('click', async () => {
-  showToast('Testing camera connection...', 'info');
-  const ip = document.getElementById('cfgPhoneIp').value.trim() || '192.168.31.211';
-  const port = parseInt(document.getElementById('cfgPhonePort').value, 10) || 8080;
-  try {
-    const res = await fetch('/api/camera/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone_ip: ip, phone_port: port }),
-    });
-    const r = await res.json();
-    if (r.success) {
-      showToast(`Camera OK: ${r.resolution} (${r.http_latency_ms}ms)`, 'info');
-    } else {
-      showToast(`Camera check: ${r.message}`, 'warning');
-    }
-  } catch (err) {
-    showToast('Camera check failed', 'danger');
-  }
-});
-
-// Save Settings
-document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
-  const updates = {
-    camera: {
-      phone_ip: document.getElementById('cfgPhoneIp').value.trim(),
-      phone_port: parseInt(document.getElementById('cfgPhonePort').value, 10),
-      video_endpoint: document.getElementById('cfgVideoEp').value.trim(),
-      snapshot_endpoint: document.getElementById('cfgSnapshotEp').value.trim(),
-    },
-    pipeline: {
-      motion_fps: parseFloat(document.getElementById('cfgMotionFps').value),
-      ai_fps: parseFloat(document.getElementById('cfgAiFps').value),
-      motion_threshold: parseInt(document.getElementById('cfgMotionThresh').value, 10),
-      detection_confidence: parseFloat(document.getElementById('cfgConfidence').value),
-      auto_throttle_cpu: document.getElementById('cfgAutoThrottle').checked,
-    },
-    alarm: {
-      sound_enabled: document.getElementById('cfgSoundEnabled').checked,
-      alarm_on_general_motion: document.getElementById('cfgAlarmMotion') ? document.getElementById('cfgAlarmMotion').checked : false,
-      alarm_on_unknown_objects: document.getElementById('cfgAlarmUnknown') ? document.getElementById('cfgAlarmUnknown').checked : false,
-      cooldowns: {
-        'Person': parseInt(document.getElementById('cfgCdPerson').value, 10),
-        'Animal detected — species unconfirmed': parseInt(document.getElementById('cfgCdAnimal').value, 10),
-        'Other recognized animal': parseInt(document.getElementById('cfgCdAnimal').value, 10),
-        'Possible monkey': parseInt(document.getElementById('cfgCdAnimal').value, 10),
-        'General motion': parseInt(document.getElementById('cfgCdMotion').value, 10),
-      },
-    },
-    power: {
-      prevent_sleep: document.getElementById('cfgPreventSleep').checked,
-    },
-    push: {
-      enabled: document.getElementById('cfgPushEnabled').checked,
-      desktop_notifications: document.getElementById('cfgPushDesktop').checked,
-      browser_audio: document.getElementById('cfgPushAudio').checked,
-      push_on_general_motion: document.getElementById('cfgPushMotion') ? document.getElementById('cfgPushMotion').checked : false,
-      push_on_unknown_objects: document.getElementById('cfgPushUnknown') ? document.getElementById('cfgPushUnknown').checked : false,
-    },
-    night_mode: {
-      mode: document.getElementById('cfgNightModeSelect') ? document.getElementById('cfgNightModeSelect').value : 'auto',
-      auto_night_lux_threshold: parseFloat(document.getElementById('cfgNightAutoThresh').value) || 45,
-      profiles: {
-        day: {
-          threshold: parseInt(document.getElementById('cfgDayThresh').value, 10) || 25,
-          min_motion_area: parseInt(document.getElementById('cfgDayMinArea').value, 10) || 250,
-        },
-        night: {
-          threshold: parseInt(document.getElementById('cfgNightThresh').value, 10) || 34,
-          min_motion_area: parseInt(document.getElementById('cfgNightMinArea').value, 10) || 350,
-        }
-      }
-    },
-    storage: {
-      retention_days: parseInt(document.getElementById('cfgRetentionDays').value, 10) || 14,
-      max_storage_mb: parseInt(document.getElementById('cfgMaxStorageMb').value, 10) || 2048,
-    },
-    event_grouping: {
-      session_timeout_sec: parseFloat(document.getElementById('cfgSessionTimeout').value) || 4.0,
-      capture_initial: true,
-      capture_change: document.getElementById('cfgCapChange') ? document.getElementById('cfgCapChange').checked : true,
-      capture_final: document.getElementById('cfgCapFinal') ? document.getElementById('cfgCapFinal').checked : true,
-    },
-    flashlight: {
-      mode: document.getElementById('cfgFlashlightMode') ? document.getElementById('cfgFlashlightMode').value : 'auto',
-      lux_threshold: parseFloat(document.getElementById('cfgFlashlightLux').value) || 45.0,
-      min_on_time_sec: parseFloat(document.getElementById('cfgFlashlightMinOn').value) || 10.0,
-      max_on_time_sec: parseFloat(document.getElementById('cfgFlashlightMaxOn').value) || 120.0,
-      inactivity_timeout_sec: parseFloat(document.getElementById('cfgFlashlightInactivity').value) || 15.0,
-    },
-    audio_detection: {
-      enabled: document.getElementById('cfgAudioEnabled') ? document.getElementById('cfgAudioEnabled').checked : true,
-      spike_multiplier: parseFloat(document.getElementById('cfgAudioSpike').value) || 3.0,
-      sustained_threshold_rms: parseFloat(document.getElementById('cfgAudioSustained').value) || 2500.0,
-    },
-  };
-
-  const newPin = document.getElementById('cfgNewPin').value.trim();
-  if (newPin) {
-    updates.server = { dashboard_pin: newPin };
-  }
-
-  try {
-    const res = await apiFetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    });
-    if (res.ok) {
-      pushEnabled = document.getElementById('cfgPushEnabled').checked;
-      pushDesktop = document.getElementById('cfgPushDesktop').checked;
-      pushAudio = document.getElementById('cfgPushAudio').checked;
-      localStorage.setItem('wheat_watch_push_enabled', pushEnabled ? 'true' : 'false');
-      localStorage.setItem('wheat_watch_push_desktop', pushDesktop ? 'true' : 'false');
-      localStorage.setItem('wheat_watch_push_audio', pushAudio ? 'true' : 'false');
-      updatePushUI();
-
-      showToast('Settings saved successfully!', 'info');
-      closeModal(settingsModal);
-      fetchStatus();
-    } else {
-      const err = await res.json();
-      showToast(err.detail || 'Failed to save settings', 'danger');
-    }
-  } catch (err) {
-    showToast('Error saving settings', 'danger');
-  }
-});
-
-// --- Dual-Mode Live Video Player (MJPEG + Canvas Fallback) ---
-const liveStreamImg = document.getElementById('liveStreamImg');
-const liveCanvas = document.getElementById('liveCanvas');
-const modeMjpegBtn = document.getElementById('modeMjpegBtn');
-const modeCanvasBtn = document.getElementById('modeCanvasBtn');
-const modeDirectPhoneLink = document.getElementById('modeDirectPhoneLink');
-
-let currentStreamMode = 'mjpeg'; // 'mjpeg' or 'canvas'
-let canvasLoopRunning = false;
-let canvasReqId = null;
-const canvasCtx = liveCanvas ? liveCanvas.getContext('2d') : null;
-
-function setStreamMode(mode) {
-  currentStreamMode = mode;
-  if (mode === 'mjpeg') {
-    modeMjpegBtn.classList.add('active');
-    modeCanvasBtn.classList.remove('active');
-    liveStreamImg.style.display = 'block';
-    liveCanvas.style.display = 'none';
-    stopCanvasLoop();
-    liveStreamImg.src = `/api/stream/live?t=${Date.now()}`;
-    showToast('Switched to Live MJPEG Stream', 'info');
-  } else {
-    modeCanvasBtn.classList.add('active');
-    modeMjpegBtn.classList.remove('active');
-    liveStreamImg.style.display = 'none';
-    liveCanvas.style.display = 'block';
-    startCanvasLoop();
-    showToast('Switched to Direct Fast Refresh (Safe Mode)', 'info');
-  }
-}
-
-if (modeMjpegBtn) modeMjpegBtn.addEventListener('click', () => setStreamMode('mjpeg'));
-if (modeCanvasBtn) modeCanvasBtn.addEventListener('click', () => setStreamMode('canvas'));
-
-function startCanvasLoop() {
-  if (canvasLoopRunning) return;
-  canvasLoopRunning = true;
-
-  let isFetching = false;
-  const offscreenImg = new Image();
-
-  offscreenImg.onload = () => {
-    if (liveCanvas.width !== offscreenImg.naturalWidth) {
-      liveCanvas.width = offscreenImg.naturalWidth;
-      liveCanvas.height = offscreenImg.naturalHeight;
-    }
-    if (canvasCtx) {
-      canvasCtx.drawImage(offscreenImg, 0, 0);
-    }
-    isFetching = false;
-  };
-
-  offscreenImg.onerror = () => {
-    isFetching = false;
-  };
-
-  function renderFrame() {
-    if (!canvasLoopRunning) return;
-    if (!isFetching) {
-      isFetching = true;
-      offscreenImg.src = `/api/stream/snapshot?t=${Date.now()}`;
-    }
-    // Schedule next frame (~15 FPS)
-    setTimeout(() => {
-      canvasReqId = requestAnimationFrame(renderFrame);
-    }, 65);
-  }
-
-  canvasReqId = requestAnimationFrame(renderFrame);
-}
-
-function stopCanvasLoop() {
-  canvasLoopRunning = false;
-  if (canvasReqId) {
-    cancelAnimationFrame(canvasReqId);
-    canvasReqId = null;
-  }
-}
-
-// Auto-Detection: If MJPEG image fails to load or naturalWidth is 0 after 2 seconds
-// (Common in Brave browser with shields / tracker blocking), auto-switch to Fast Refresh!
-setTimeout(() => {
-  if (currentStreamMode === 'mjpeg' && (!liveStreamImg.complete || liveStreamImg.naturalWidth === 0)) {
-    console.warn('MJPEG stream not rendering (Brave Shields or browser security). Auto-switching to Fast Refresh mode.');
-    setStreamMode('canvas');
-  }
-}, 2500);
-
-liveStreamImg.onerror = () => {
-  console.warn('liveStreamImg error detected.');
-  if (currentStreamMode === 'mjpeg') {
-    setStreamMode('canvas');
-  }
-};
-
-// Update Direct Phone link with actual IP from config
-function updatePhoneStreamLink(camUrl) {
-  if (modeDirectPhoneLink && camUrl) {
-    modeDirectPhoneLink.href = camUrl;
-  }
-}
-
-// Flashlight History Toggle Listener
-if (toggleFlashlightLogBtn && flashlightLogContainer) {
-  toggleFlashlightLogBtn.addEventListener('click', () => {
-    const isHidden = flashlightLogContainer.style.display === 'none';
-    flashlightLogContainer.style.display = isHidden ? 'block' : 'none';
-    toggleFlashlightLogBtn.textContent = isHidden ? '🔼 Hide History' : '📜 Toggle History';
-  });
-}
-
-// Test Audio Trigger Listener
-if (testAudioBtn) {
-  testAudioBtn.addEventListener('click', async () => {
-    try {
-      const res = await apiFetch('/api/microphone/test', { method: 'POST' });
+      const res = await apiFetch(`/api/events/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        showToast('Synthetic Phone Microphone Activity Triggered (2.0s)!', 'info');
-        fetchStatus();
+        showToast(`Incident #${id} removed`, 'success');
+        closeModal(DOM.eventDetailModal);
+        fetchEvents();
+      } else if (res.status === 401) {
+        openPinModal();
       } else {
-        const data = await res.json();
-        showToast(data.detail || 'Failed to trigger audio test', 'danger');
+        showToast('Failed to delete incident', 'danger');
       }
-    } catch (e) {
-      showToast('Audio test request failed', 'danger');
+    } catch (err) {
+      showToast('Failed to delete incident', 'danger');
     }
-  });
-}
-
-// Diagnostics Modal Opener & Population
-if (diagnosticsBtn && diagnosticsModal) {
-  diagnosticsBtn.addEventListener('click', () => {
-    populateDiagnosticsModal(latestDiagnosticsData);
-    openModal(diagnosticsModal);
-  });
-}
-
-function populateDiagnosticsModal(data) {
-  if (!data) return;
-  const cam = data.camera || {};
-  const mic = data.microphone || {};
-  const fl = data.flashlight || {};
-  const metrics = data.metrics || {};
-  const storage = data.storage || {};
-
-  // Camera Subsystem
-  const diagCamState = document.getElementById('diagCamState');
-  if (diagCamState) {
-    diagCamState.textContent = cam.state || 'OFFLINE';
-    diagCamState.style.color = cam.is_connected ? '#34d399' : '#f87171';
   }
-  const diagCamUrl = document.getElementById('diagCamUrl');
-  if (diagCamUrl) diagCamUrl.textContent = cam.video_url || '--';
-  const diagCamRes = document.getElementById('diagCamRes');
-  if (diagCamRes) diagCamRes.textContent = cam.resolution ? `${cam.resolution[0]}x${cam.resolution[1]}` : '--';
-  const diagCamFps = document.getElementById('diagCamFps');
-  if (diagCamFps) diagCamFps.textContent = `${cam.fps || 0} FPS`;
-  const diagCamLatency = document.getElementById('diagCamLatency');
-  if (diagCamLatency) diagCamLatency.textContent = `${cam.latency_ms || 0} ms`;
-  const diagCamReconnects = document.getElementById('diagCamReconnects');
-  if (diagCamReconnects) diagCamReconnects.textContent = cam.reconnect_attempts || 0;
 
-  // Phone Mic Subsystem
-  const diagMicState = document.getElementById('diagMicState');
-  if (diagMicState) {
-    diagMicState.textContent = mic.is_connected ? 'CONNECTED' : 'DISCONNECTED';
-    diagMicState.style.color = mic.is_connected ? '#34d399' : '#f87171';
+  // =========================================================================
+  // Hardware & Camera Console Handlers
+  // =========================================================================
+  function initHardwareConsole() {
+    // Master surveillance button toggle
+    if (DOM.masterSurveillanceBtn) {
+      DOM.masterSurveillanceBtn.addEventListener('click', async () => {
+        const target = !state.isSurveillanceArmed;
+        try {
+          const res = await apiFetch('/api/surveillance/toggle', {
+            method: 'POST',
+            body: { enabled: target }
+          });
+          if (res.ok) {
+            state.isSurveillanceArmed = target;
+            showToast(`Surveillance pipeline ${target ? 'ARMED' : 'DISARMED'}`, target ? 'success' : 'warning');
+            pollStatus();
+          }
+        } catch (err) {
+          showToast('Failed to toggle surveillance pipeline', 'danger');
+        }
+      });
+    }
+
+    // Day/Night profile segmented buttons
+    const setNightMode = async (mode) => {
+      try {
+        const res = await apiFetch('/api/night_mode', {
+          method: 'POST',
+          body: { mode }
+        });
+        if (res.ok) {
+          showToast(`Profile set to ${mode.toUpperCase()}`, 'info');
+          [DOM.btnNightDay, DOM.btnNightNight, DOM.btnNightAuto].forEach(b => {
+            if (b) b.classList.toggle('active', b.getAttribute('data-mode') === mode);
+          });
+          if (DOM.hudModeBadge) DOM.hudModeBadge.textContent = `${mode.toUpperCase()} PROFILE`;
+        }
+      } catch (err) {
+        showToast('Failed to set night mode profile', 'danger');
+      }
+    };
+    if (DOM.btnNightDay) DOM.btnNightDay.addEventListener('click', () => setNightMode('off'));
+    if (DOM.btnNightNight) DOM.btnNightNight.addEventListener('click', () => setNightMode('on'));
+    if (DOM.btnNightAuto) DOM.btnNightAuto.addEventListener('click', () => setNightMode('auto'));
+
+    // Flashlight Automation mode buttons
+    const setFlashlightMode = async (mode) => {
+      try {
+        const res = await apiFetch('/api/flashlight/mode', {
+          method: 'POST',
+          body: { mode }
+        });
+        if (res.ok) {
+          showToast(`Torch mode set to ${mode.toUpperCase()}`, 'info');
+          pollStatus();
+        }
+      } catch (err) {
+        showToast('Failed to set flashlight mode', 'danger');
+      }
+    };
+    if (DOM.btnFlashlightAuto) DOM.btnFlashlightAuto.addEventListener('click', () => setFlashlightMode('auto'));
+    if (DOM.btnFlashlightManual) DOM.btnFlashlightManual.addEventListener('click', () => setFlashlightMode('on'));
+    if (DOM.btnFlashlightOff) DOM.btnFlashlightOff.addEventListener('click', () => setFlashlightMode('off'));
+
+    // Test Audio trigger
+    if (DOM.testAudioBtn) {
+      DOM.testAudioBtn.addEventListener('click', async () => {
+        showToast('Simulating test audio trigger from Redmi 10...', 'info');
+        await apiFetch('/api/microphone/test', { method: 'POST' });
+        pollStatus();
+      });
+    }
+
+    // Test Alarm
+    if (DOM.testAlarmBtn) {
+      DOM.testAlarmBtn.addEventListener('click', async () => {
+        showToast('Triggering laptop audio alarm test...', 'info');
+        await apiFetch('/api/alarm/test', { method: 'POST' });
+      });
+    }
+
+    // Overview start/stop pipeline buttons
+    if (DOM.overviewStartBtn) {
+      DOM.overviewStartBtn.addEventListener('click', async () => {
+        await apiFetch('/api/monitoring/start', { method: 'POST' });
+        showToast('Surveillance pipeline started', 'success');
+        pollStatus();
+      });
+    }
+    if (DOM.overviewStopBtn) {
+      DOM.overviewStopBtn.addEventListener('click', async () => {
+        await apiFetch('/api/monitoring/stop', { method: 'POST' });
+        showToast('Surveillance pipeline stopped', 'warning');
+        pollStatus();
+      });
+    }
+    if (DOM.overviewTestPushBtn) {
+      DOM.overviewTestPushBtn.addEventListener('click', async () => {
+        await apiFetch('/api/push/test', { method: 'POST' });
+        showToast('Push alert dispatched', 'info');
+      });
+    }
+
+    // Camera sliders with debounced post
+    let sliderDebounce = null;
+    const postCameraControls = () => {
+      clearTimeout(sliderDebounce);
+      sliderDebounce = setTimeout(async () => {
+        const payload = {
+          quality: parseInt(DOM.sliderQuality.value),
+          exposure: parseInt(DOM.sliderExposure.value),
+          gamma: parseFloat(DOM.sliderGamma.value),
+          brightness: parseInt(DOM.sliderBrightness.value),
+          contrast: parseFloat(DOM.sliderContrast.value),
+          white_balance: DOM.selectWhiteBalance.value
+        };
+        try {
+          await apiFetch('/api/camera/controls', { method: 'POST', body: payload });
+        } catch (err) {}
+      }, 300);
+    };
+
+    const wireSlider = (slider, display, suffix = '') => {
+      if (!slider || !display) return;
+      slider.addEventListener('input', () => {
+        display.textContent = `${slider.value}${suffix}`;
+        postCameraControls();
+      });
+    };
+
+    wireSlider(DOM.sliderQuality, DOM.sliderQualityVal, '%');
+    wireSlider(DOM.sliderExposure, DOM.sliderExposureVal, '');
+    wireSlider(DOM.sliderGamma, DOM.sliderGammaVal, 'x');
+    wireSlider(DOM.sliderBrightness, DOM.sliderBrightnessVal, '');
+    wireSlider(DOM.sliderContrast, DOM.sliderContrastVal, 'x');
+    if (DOM.selectWhiteBalance) DOM.selectWhiteBalance.addEventListener('change', postCameraControls);
+
+    if (DOM.resetControlsBtn) {
+      DOM.resetControlsBtn.addEventListener('click', async () => {
+        await apiFetch('/api/camera/reset', { method: 'POST' });
+        showToast('Camera optical parameters reset to defaults', 'info');
+        loadCameraControls();
+      });
+    }
+
+    // Hardware toggle actions
+    if (DOM.testCamBtn) {
+      DOM.testCamBtn.addEventListener('click', async () => {
+        showToast('Probing camera stream connection...', 'info');
+        const res = await apiFetch('/api/camera/test', {
+          method: 'POST',
+          body: { url: 'http://192.168.31.211:8080/shot.jpg' }
+        });
+        if (res.ok) showToast('Camera responded: HTTP 200 OK', 'success');
+        else showToast('Camera probe failed', 'danger');
+      });
+    }
+
+    if (DOM.clearEventsBtn) {
+      DOM.clearEventsBtn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to purge all stored incident logs?')) return;
+        const res = await apiFetch('/api/events/clear', { method: 'POST' });
+        if (res.ok) {
+          showToast('Incident records purged', 'warning');
+          fetchEvents();
+        } else if (res.status === 401) {
+          openPinModal();
+        }
+      });
+    }
   }
-  const diagMicUrl = document.getElementById('diagMicUrl');
-  if (diagMicUrl) diagMicUrl.textContent = mic.stream_url || '--';
-  const diagMicFormat = document.getElementById('diagMicFormat');
-  if (diagMicFormat) diagMicFormat.textContent = `${(mic.sample_rate || 16000)/1000}kHz 16-bit ${mic.channels === 1 ? 'Mono' : 'Stereo'} PCM`;
-  const diagMicRms = document.getElementById('diagMicRms');
-  if (diagMicRms) diagMicRms.textContent = `${mic.current_rms || 0} RMS`;
-  const diagMicFloor = document.getElementById('diagMicFloor');
-  if (diagMicFloor) diagMicFloor.textContent = `${mic.noise_floor || 1200} (SNR: ${mic.snr || 1.0}x)`;
 
-  // Flashlight Subsystem
-  const diagFlashMode = document.getElementById('diagFlashMode');
-  if (diagFlashMode) diagFlashMode.textContent = (fl.mode || 'auto').toUpperCase();
-  const diagFlashHw = document.getElementById('diagFlashHw');
-  if (diagFlashHw) {
-    diagFlashHw.textContent = fl.is_on ? 'ON' : 'OFF';
-    diagFlashHw.style.color = fl.is_on ? '#fbbf24' : 'inherit';
+  async function loadCameraControls() {
+    try {
+      const res = await apiFetch('/api/camera/controls');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (DOM.sliderQuality && data.quality !== undefined) {
+        DOM.sliderQuality.value = data.quality;
+        DOM.sliderQualityVal.textContent = `${data.quality}%`;
+      }
+      if (DOM.sliderExposure && data.exposure !== undefined) {
+        DOM.sliderExposure.value = data.exposure;
+        DOM.sliderExposureVal.textContent = data.exposure;
+      }
+      if (DOM.sliderGamma && data.gamma !== undefined) {
+        DOM.sliderGamma.value = data.gamma;
+        DOM.sliderGammaVal.textContent = `${data.gamma}x`;
+      }
+      if (DOM.sliderBrightness && data.brightness !== undefined) {
+        DOM.sliderBrightness.value = data.brightness;
+        DOM.sliderBrightnessVal.textContent = data.brightness;
+      }
+      if (DOM.sliderContrast && data.contrast !== undefined) {
+        DOM.sliderContrast.value = data.contrast;
+        DOM.sliderContrastVal.textContent = `${data.contrast}x`;
+      }
+      if (DOM.selectWhiteBalance && data.white_balance) {
+        DOM.selectWhiteBalance.value = data.white_balance;
+      }
+    } catch (err) {}
   }
-  const diagFlashReq = document.getElementById('diagFlashReq');
-  if (diagFlashReq) diagFlashReq.textContent = fl.requested_state ? 'ON' : 'OFF';
-  const diagFlashLight = document.getElementById('diagFlashLight');
-  if (diagFlashLight) diagFlashLight.textContent = fl.lighting_condition || 'UNKNOWN';
-  const diagFlashResult = document.getElementById('diagFlashResult');
-  if (diagFlashResult) diagFlashResult.textContent = fl.last_command_result || 'IDLE';
 
-  // Host Resources
-  const diagCpuPct = document.getElementById('diagCpuPct');
-  if (diagCpuPct) diagCpuPct.textContent = `${metrics.cpu_percent || 0}%`;
-  const diagRamPct = document.getElementById('diagRamPct');
-  if (diagRamPct) diagRamPct.textContent = `${metrics.ram_used_mb || 0} MB (${metrics.ram_percent || 0}%)`;
-  const diagProcFps = document.getElementById('diagProcFps');
-  if (diagProcFps) diagProcFps.textContent = `${metrics.processing_fps || 0} FPS`;
-  const diagThrottle = document.getElementById('diagThrottle');
-  if (diagThrottle) diagThrottle.textContent = metrics.is_throttling ? 'YES (High CPU)' : 'No';
+  // =========================================================================
+  // System Analytics & Storage
+  // =========================================================================
+  async function fetchStorageStats() {
+    try {
+      const res = await apiFetch('/api/storage/stats');
+      if (!res.ok) return;
+      const data = await res.json();
 
-  // Storage
-  const diagDbRows = document.getElementById('diagDbRows');
-  if (diagDbRows) diagDbRows.textContent = `${data.summary ? data.summary.total_events : (storage.events_count || 14)} records`;
-  const diagStorageCount = document.getElementById('diagStorageCount');
-  if (diagStorageCount) diagStorageCount.textContent = `${storage.image_count || 0} snapshots`;
-  const diagStorageMb = document.getElementById('diagStorageMb');
-  if (diagStorageMb) diagStorageMb.textContent = `${storage.total_size_mb || 0} MB / ${storage.max_storage_mb || 2048} MB (${storage.percent_used || 0}%)`;
+      if (DOM.analyticsDbRows) DOM.analyticsDbRows.textContent = data.total_events || 0;
+      if (DOM.storageImageCount) DOM.storageImageCount.textContent = data.snapshot_count || 0;
+      if (DOM.storageUsedMbText) DOM.storageUsedMbText.textContent = `${(data.storage_used_mb || 0).toFixed(1)} MB`;
+      if (DOM.storageBar) DOM.storageBar.style.width = `${Math.min(100, data.storage_percent || 0)}%`;
+      if (DOM.storagePercentBadge) DOM.storagePercentBadge.textContent = `${(data.storage_percent || 0).toFixed(1)}% of ${data.storage_limit_mb || 2048} MB`;
+    } catch (err) {}
+  }
 
-  const diagPushClients = document.getElementById('diagPushClients');
-  if (diagPushClients) diagPushClients.textContent = 'Active';
-}
+  function initAnalyticsHandlers() {
+    if (DOM.analyticsBackupBtn) {
+      DOM.analyticsBackupBtn.addEventListener('click', async () => {
+        showToast('Initiating online SQLite database backup...', 'info');
+        const res = await apiFetch('/api/storage/backup', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          showToast(`Hot backup created: ${data.backup_file || 'events_backup.db'}`, 'success');
+        } else if (res.status === 401) {
+          openPinModal();
+        } else {
+          showToast('Backup operation failed', 'danger');
+        }
+      });
+    }
 
-// Initializations
-updatePushUI();
-initPushStream();
-setViewMode(currentViewMode);
+    if (DOM.analyticsPurgeBtn) {
+      DOM.analyticsPurgeBtn.addEventListener('click', async () => {
+        if (!confirm('Run automatic incident retention cleanup?')) return;
+        const res = await apiFetch('/api/storage/cleanup', { method: 'POST' });
+        if (res.ok) {
+          showToast('Retention cleanup completed', 'success');
+          fetchStorageStats();
+          fetchEvents();
+        } else if (res.status === 401) {
+          openPinModal();
+        }
+      });
+    }
+  }
 
-// Polling loops
-fetchStatus();
-fetchEvents();
-setInterval(fetchStatus, 1500);
-setInterval(fetchEvents, 3000);
+  // =========================================================================
+  // Settings Configuration Form
+  // =========================================================================
+  async function loadConfigSettings() {
+    try {
+      const res = await apiFetch('/api/config');
+      if (!res.ok) return;
+      const cfg = await res.json();
+
+      if (DOM.cfgPhoneIp) DOM.cfgPhoneIp.value = cfg.phone_ip || '192.168.31.211';
+      if (DOM.cfgPhonePort) DOM.cfgPhonePort.value = cfg.phone_port || 8080;
+      if (DOM.cfgVideoEp) DOM.cfgVideoEp.value = cfg.video_endpoint || '/video';
+      if (DOM.cfgSnapshotEp) DOM.cfgSnapshotEp.value = cfg.snapshot_endpoint || '/shot.jpg';
+      if (DOM.cfgAudioEp) DOM.cfgAudioEp.value = cfg.audio_endpoint || '/audio.wav';
+      if (DOM.cfgMotionFps) DOM.cfgMotionFps.value = cfg.motion_fps || 8;
+      if (DOM.cfgAiFps) DOM.cfgAiFps.value = cfg.ai_fps || 1.5;
+      if (DOM.cfgMotionThresh) DOM.cfgMotionThresh.value = cfg.motion_threshold || 25;
+      if (DOM.cfgConfidence) DOM.cfgConfidence.value = cfg.min_confidence || 0.45;
+      if (DOM.cfgAutoThrottle) DOM.cfgAutoThrottle.checked = cfg.auto_throttle !== false;
+      if (DOM.cfgSoundEnabled) DOM.cfgSoundEnabled.checked = cfg.sound_alarm_enabled !== false;
+      if (DOM.cfgCdPerson) DOM.cfgCdPerson.value = cfg.cooldown_person || 15;
+      if (DOM.cfgCdAnimal) DOM.cfgCdAnimal.value = cfg.cooldown_animal || 20;
+      if (DOM.cfgCdMotion) DOM.cfgCdMotion.value = cfg.cooldown_motion || 30;
+    } catch (err) {
+      console.warn('Failed to load settings:', err);
+    }
+  }
+
+  function initSettingsHandlers() {
+    if (DOM.saveGlobalSettingsBtn) {
+      DOM.saveGlobalSettingsBtn.addEventListener('click', async () => {
+        const payload = {
+          phone_ip: DOM.cfgPhoneIp.value.trim(),
+          phone_port: parseInt(DOM.cfgPhonePort.value),
+          video_endpoint: DOM.cfgVideoEp.value.trim(),
+          snapshot_endpoint: DOM.cfgSnapshotEp.value.trim(),
+          audio_endpoint: DOM.cfgAudioEp.value.trim(),
+          motion_fps: parseFloat(DOM.cfgMotionFps.value),
+          ai_fps: parseFloat(DOM.cfgAiFps.value),
+          motion_threshold: parseInt(DOM.cfgMotionThresh.value),
+          min_confidence: parseFloat(DOM.cfgConfidence.value),
+          auto_throttle: DOM.cfgAutoThrottle.checked,
+          sound_alarm_enabled: DOM.cfgSoundEnabled.checked,
+          cooldown_person: parseInt(DOM.cfgCdPerson.value),
+          cooldown_animal: parseInt(DOM.cfgCdAnimal.value),
+          cooldown_motion: parseInt(DOM.cfgCdMotion.value)
+        };
+
+        if (DOM.cfgNewPin.value.trim()) {
+          payload.dashboard_pin = DOM.cfgNewPin.value.trim();
+        }
+
+        try {
+          const res = await apiFetch('/api/config', {
+            method: 'POST',
+            body: payload
+          });
+          if (res.ok) {
+            showToast('Configuration updated and saved to disk', 'success');
+            DOM.cfgNewPin.value = '';
+          } else if (res.status === 401) {
+            openPinModal();
+          } else {
+            showToast('Failed to save settings', 'danger');
+          }
+        } catch (err) {
+          showToast('Error saving settings', 'danger');
+        }
+      });
+    }
+  }
+
+  // =========================================================================
+  // PIN Authentication & Sessions
+  // =========================================================================
+  function updateAuthUI() {
+    if (DOM.sidebarPinBtn) {
+      DOM.sidebarPinBtn.title = state.isAuthenticated ? 'Console Unlocked (Click to Lock)' : 'Console Locked (Click to Unlock)';
+    }
+    if (DOM.sidebarPinText) {
+      DOM.sidebarPinText.textContent = state.isAuthenticated ? 'PIN: Unlocked' : 'PIN: Locked';
+    }
+  }
+
+  function openPinModal() {
+    if (DOM.pinError) DOM.pinError.textContent = '';
+    if (DOM.pinInput) DOM.pinInput.value = '';
+    openModal(DOM.pinModal);
+    setTimeout(() => { if (DOM.pinInput) DOM.pinInput.focus(); }, 150);
+  }
+
+  function initAuthHandlers() {
+    if (DOM.sidebarPinBtn) {
+      DOM.sidebarPinBtn.addEventListener('click', () => {
+        if (state.isAuthenticated) {
+          logoutSession();
+        } else {
+          openPinModal();
+        }
+      });
+    }
+
+    if (DOM.securityLogoutBtn) {
+      DOM.securityLogoutBtn.addEventListener('click', logoutSession);
+    }
+
+    if (DOM.pinForm) {
+      DOM.pinForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const pin = DOM.pinInput.value.trim();
+        if (!pin) return;
+
+        try {
+          const res = await fetch('/api/auth/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            state.isAuthenticated = true;
+            state.sessionToken = data.session_id || '';
+            state.csrfToken = data.csrf_token || '';
+            localStorage.setItem('pysurv_session_token', state.sessionToken);
+            updateAuthUI();
+            closeModal(DOM.pinModal);
+            showToast('PIN verified. Operations unlocked.', 'success');
+          } else {
+            if (DOM.pinError) DOM.pinError.textContent = 'Invalid PIN code. Please try again.';
+          }
+        } catch (err) {
+          if (DOM.pinError) DOM.pinError.textContent = 'Authentication error';
+        }
+      });
+    }
+  }
+
+  async function logoutSession() {
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {}
+    state.isAuthenticated = false;
+    state.sessionToken = '';
+    state.csrfToken = '';
+    localStorage.removeItem('pysurv_session_token');
+    updateAuthUI();
+    showToast('Session locked', 'info');
+  }
+
+  // =========================================================================
+  // SSE Real-Time Event Subscriber
+  // =========================================================================
+  function initSSE() {
+    if (state.eventSource) state.eventSource.close();
+    state.eventSource = new EventSource('/api/push/stream');
+
+    state.eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'incident' || data.type === 'event' || data.event) {
+          showPushBanner(data);
+          fetchEvents();
+        }
+      } catch (e) {}
+    };
+
+    state.eventSource.onerror = () => {
+      console.warn('SSE disconnected; reconnecting automatically in 5s...');
+    };
+  }
+
+  // =========================================================================
+  // QR Code Modal & Mobile
+  // =========================================================================
+  async function loadQrCode() {
+    try {
+      const res = await apiFetch('/api/qr');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (DOM.qrCodeContainer && data.svg) {
+        DOM.qrCodeContainer.innerHTML = data.svg;
+      }
+      if (DOM.phoneUrlText && data.url) {
+        DOM.phoneUrlText.textContent = data.url;
+      }
+      if (DOM.phoneUrlLink && data.url) {
+        DOM.phoneUrlLink.href = data.url;
+      }
+    } catch (err) {}
+  }
+
+  function initQrHandlers() {
+    if (DOM.qrBtn) {
+      DOM.qrBtn.addEventListener('click', () => {
+        loadQrCode();
+        openModal(DOM.qrModal);
+      });
+    }
+    if (DOM.copyUrlBtn) {
+      DOM.copyUrlBtn.addEventListener('click', () => {
+        if (DOM.phoneUrlText) {
+          navigator.clipboard.writeText(DOM.phoneUrlText.textContent);
+          showToast('LAN Dashboard URL copied to clipboard', 'success');
+        }
+      });
+    }
+  }
+
+  // =========================================================================
+  // Modal Helpers
+  // =========================================================================
+  function openModal(modal) {
+    if (modal) modal.classList.add('open');
+  }
+
+  function closeModal(modal) {
+    if (modal) modal.classList.remove('open');
+  }
+
+  function initModalDismissals() {
+    document.querySelectorAll('.soc-modal').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal(modal);
+      });
+    });
+
+    document.querySelectorAll('.modal-close-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.getAttribute('data-close');
+        if (targetId) closeModal(document.getElementById(targetId));
+      });
+    });
+  }
+
+  // =========================================================================
+  // Responsive Navigation & Sidebar Toggles
+  // =========================================================================
+  function initNavigation() {
+    window.addEventListener('hashchange', handleHashChange);
+
+    DOM.navItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        const targetView = item.getAttribute('data-view');
+        if (targetView) {
+          window.location.hash = targetView;
+        }
+      });
+    });
+
+    if (DOM.sidebarCollapseBtn) {
+      DOM.sidebarCollapseBtn.addEventListener('click', () => {
+        DOM.sidebar.classList.toggle('collapsed');
+      });
+    }
+
+    if (DOM.mobileMenuBtn) {
+      DOM.mobileMenuBtn.addEventListener('click', () => {
+        DOM.sidebar.classList.toggle('mobile-open');
+      });
+    }
+
+    // Incident view mode switches
+    if (DOM.viewTabTimeline) {
+      DOM.viewTabTimeline.addEventListener('click', () => {
+        state.incidentViewMode = 'timeline';
+        DOM.viewTabTimeline.classList.add('active');
+        if (DOM.viewTabGallery) DOM.viewTabGallery.classList.remove('active');
+        renderEventsList();
+      });
+    }
+
+    if (DOM.viewTabGallery) {
+      DOM.viewTabGallery.addEventListener('click', () => {
+        state.incidentViewMode = 'gallery';
+        DOM.viewTabGallery.classList.add('active');
+        if (DOM.viewTabTimeline) DOM.viewTabTimeline.classList.remove('active');
+        renderEventsList();
+      });
+    }
+
+    // Category pills
+    DOM.catPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        DOM.catPills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        state.selectedCategory = pill.getAttribute('data-category') || 'all';
+        fetchEvents();
+      });
+    });
+  }
+
+  // =========================================================================
+  // Bootstrap & Init
+  // =========================================================================
+  function init() {
+    cacheDom();
+    initNavigation();
+    initStreamPlayers();
+    initHardwareConsole();
+    initAnalyticsHandlers();
+    initSettingsHandlers();
+    initAuthHandlers();
+    initQrHandlers();
+    initModalDismissals();
+    initSSE();
+
+    // Export inspect & delete functions for inline onclick handlers
+    window.PySurveillance = {
+      inspectEvent,
+      deleteEvent
+    };
+
+    // Initial Hash View
+    handleHashChange();
+
+    // Initial Data Fetches
+    pollStatus();
+    fetchEvents();
+    loadCameraControls();
+
+    // Timers
+    state.statusPollTimer = setInterval(pollStatus, 1000);
+    state.eventsPollTimer = setInterval(fetchEvents, 4000);
+    state.storagePollTimer = setInterval(fetchStorageStats, 10000);
+
+    updateAuthUI();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
