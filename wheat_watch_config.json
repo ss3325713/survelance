@@ -1,0 +1,143 @@
+{
+  "camera": {
+    "phone_ip": "192.168.31.211",
+    "phone_port": 8080,
+    "video_endpoint": "/video",
+    "snapshot_endpoint": "/shot.jpg",
+    "username": "",
+    "password": "",
+    "timeout_sec": 5.0,
+    "reconnect_delay_sec": 3.0,
+    "reconnect_backoff": 1.5,
+    "max_reconnect_delay_sec": 15.0,
+    "reconnect_timeout_sec": 60.0
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "dashboard_pin": "1234",
+    "pin_required": true,
+    "session_secret": "7672e488857cbe0efb3a4d1ccf1cfffddd2a3779cab2a3d139a928e0e04848c0",
+    "restrict_local_network": true
+  },
+  "pipeline": {
+    "target_width": 1280,
+    "target_height": 720,
+    "motion_fps": 8.0,
+    "motion_threshold": 25,
+    "min_motion_area": 250,
+    "max_motion_percent": 22.0,
+    "require_motion_overlap": true,
+    "ai_fps": 1.5,
+    "detection_confidence": 0.45,
+    "auto_throttle_cpu": true,
+    "cpu_throttle_threshold": 85.0,
+    "monkey_model_path": "models/monkey_classifier.onnx"
+  },
+  "image_controls": {
+    "resolution": "1280x720",
+    "quality": 95,
+    "exposure_compensation": -2,
+    "gamma": 0.75,
+    "brightness": -15,
+    "contrast": 1.15,
+    "auto_hdr": false,
+    "white_balance": "auto",
+    "torch": false,
+    "night_vision": false
+  },
+  "alarm": {
+    "sound_enabled": true,
+    "volume": 1.0,
+    "alarm_on_general_motion": false,
+    "alarm_on_unknown_objects": false,
+    "alert_categories": [
+      "Person",
+      "Bird",
+      "Animal detected \u2014 species unconfirmed",
+      "Other recognized animal",
+      "Possible monkey"
+    ],
+    "cooldowns": {
+      "General motion": 15,
+      "Person": 30,
+      "Bird": 20,
+      "Other recognized animal": 25,
+      "Animal detected \u2014 species unconfirmed": 25,
+      "Possible monkey": 15,
+      "Unknown object": 20
+    }
+  },
+  "power": {
+    "prevent_sleep": true
+  },
+  "push": {
+    "enabled": true,
+    "browser_audio": true,
+    "desktop_notifications": true,
+    "push_on_general_motion": false,
+    "push_on_unknown_objects": false,
+    "min_confidence": 0.35,
+    "alert_categories": [
+      "Person",
+      "Bird",
+      "Animal detected \u2014 species unconfirmed",
+      "Other recognized animal",
+      "Possible monkey"
+    ]
+  },
+  "night_mode": {
+    "mode": "auto",
+    "auto_threshold": 45.0,
+    "hysteresis": 8.0,
+    "day": {
+      "motion_threshold": 25,
+      "min_motion_area": 250,
+      "max_motion_percent": 22.0,
+      "light_change_threshold": 7.5,
+      "motion_fps": 8.0,
+      "ai_fps": 1.5
+    },
+    "night": {
+      "motion_threshold": 34,
+      "min_motion_area": 350,
+      "max_motion_percent": 18.0,
+      "light_change_threshold": 12.0,
+      "motion_fps": 6.0,
+      "ai_fps": 1.0
+    }
+  },
+  "event_grouping": {
+    "enabled": true,
+    "cooldown_sec": 10.0,
+    "session_timeout_sec": 4.0,
+    "capture_initial": true,
+    "capture_change": true,
+    "capture_final": true
+  },
+  "storage": {
+    "events_dir": "storage/events",
+    "db_path": "storage/events.db",
+    "retention_days": 14,
+    "max_storage_mb": 2048
+  },
+  "flashlight": {
+    "mode": "auto",
+    "lux_threshold": 45.0,
+    "min_on_time_sec": 10.0,
+    "max_on_time_sec": 120.0,
+    "inactivity_timeout_sec": 15.0,
+    "stabilization_frames": 15
+  },
+  "audio_detection": {
+    "enabled": true,
+    "sample_rate": 16000,
+    "chunk_size": 1600,
+    "spike_multiplier": 3.0,
+    "sustained_threshold_rms": 2500.0,
+    "min_trigger_rms": 1800.0,
+    "consecutive_sustained_windows": 2,
+    "noise_floor_alpha": 0.05,
+    "activity_cooldown_sec": 1.0
+  }
+}

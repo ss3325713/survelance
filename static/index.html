@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🌾 PySURVEILLANCE — Surveillance & Field Defense</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <div class="brand-logo">🌾</div>
+      <div class="brand-title">
+        <h1>PySURVEILLANCE</h1>
+        <span class="brand-subtitle">SURVEILLANCE & DEFENSE</span>
+      </div>
+    </div>
+
+    <!-- Live Status Indicators -->
+    <div class="nav-status-bar">
+      <!-- Surveillance Mode Toggle -->
+      <button id="navSurveillanceBtn" class="btn btn-surveillance-toggle active" title="Toggle Surveillance Monitoring Mode">
+        <span class="pill-dot"></span>
+        <span id="navSurveillanceText">SURVEILLANCE: ON</span>
+      </button>
+
+      <!-- Night Mode Quick Selector -->
+      <div class="night-mode-pill-group">
+        <span class="night-label">🌙 Night:</span>
+        <div class="btn-group-segmented">
+          <button id="btnNightDay" class="btn-seg-option" data-mode="off" title="Force Daytime Mode">☀️ Day</button>
+          <button id="btnNightNight" class="btn-seg-option" data-mode="on" title="Force Night Mode">🌙 Night</button>
+          <button id="btnNightAuto" class="btn-seg-option active" data-mode="auto" title="Adaptive Ambient Lux Mode">⚡ Auto</button>
+        </div>
+        <span id="nightActiveIndicator" class="night-indicator-badge">Auto (Day)</span>
+      </div>
+
+      <!-- Monitoring Uptime -->
+      <div id="uptimePill" class="status-pill pill-uptime" title="Surveillance Monitoring Uptime">
+        <span>⏱️ <strong id="uptimeText">00:00:00</strong></span>
+      </div>
+
+      <!-- Camera Connection Status -->
+      <div id="cameraPill" class="status-pill pill-warning">
+        <span class="pill-dot"></span>
+        <span id="cameraPillText">CAMERA: CONNECTING</span>
+      </div>
+
+      <div id="sleepPill" class="status-pill pill-info">
+        <span>⚡ SLEEP INHIBITED</span>
+      </div>
+    </div>
+
+    <!-- Quick Action / Menu -->
+    <div class="nav-actions">
+      <button id="togglePushNavBtn" class="btn btn-push-toggle active" title="Toggle Force Push Messages to this Browser">
+        <span class="push-bell">🔔</span>
+        <span id="pushNavLabel">Push: ON</span>
+      </button>
+      <button id="qrBtn" class="btn btn-secondary btn-sm" title="Scan QR to open on Phone">
+        📱 Phone Link
+      </button>
+      <button id="settingsBtn" class="btn btn-secondary btn-sm" title="System Settings">
+        ⚙️ Settings
+      </button>
+      <button id="pinBtn" class="btn btn-outline btn-sm" title="Dashboard PIN">
+        🔒 PIN <span id="pinStatusText">(Locked)</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Network Access Banner -->
+  <div class="network-banner">
+    <div class="network-info">
+      <span class="net-icon">🌐</span>
+      <span><strong>Laptop LAN IP:</strong> <code id="laptopLanIp">Loading...</code></span>
+      <span class="sep">|</span>
+      <span><strong>Phone Dashboard URL:</strong> <a id="phoneUrlLink" href="#" target="_blank"><code id="phoneUrlText">Loading...</code></a></span>
+    </div>
+    <div class="net-actions">
+      <button id="copyUrlBtn" class="btn-link">📋 Copy URL</button>
+    </div>
+  </div>
+
+  <!-- Camera Disconnection Alert Warning Banner -->
+  <div id="cameraDisconnectBanner" class="camera-disconnect-banner" style="display: none;">
+    <div class="banner-inner">
+      <span class="banner-icon">⚠️</span>
+      <span id="cameraDisconnectText" class="banner-text"><strong>CAMERA DISCONNECTED:</strong> Real-time stream lost. Auto-reconnecting in background...</span>
+      <button id="bannerRetryCamBtn" class="btn btn-warning btn-sm">⚡ Force Reconnect</button>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <main class="dashboard-grid">
+
+    <!-- Left Column: Video Stream & Live Controls -->
+    <section class="stream-panel card">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="live-tag">LIVE FEED</span>
+          <h2>Redmi 10 Stream Preview</h2>
+        </div>
+        <!-- Stream Mode Switcher -->
+        <div class="stream-mode-tabs">
+          <button id="modeMjpegBtn" class="stream-tab active" title="Multiplexed MJPEG stream">🔴 MJPEG Stream</button>
+          <button id="modeCanvasBtn" class="stream-tab" title="Direct high-speed Canvas snapshot (Brave/Chrome safe)">⚡ Fast Refresh</button>
+          <a id="modeDirectPhoneLink" href="http://192.168.31.211:8080/video" target="_blank" class="stream-tab" title="Direct raw connection to Redmi 10">📱 Direct Phone</a>
+        </div>
+        <div class="stream-telemetry">
+          <span class="badge" id="telemetryFps">Cam: -- FPS</span>
+          <span class="badge" id="telemetryProcFps">Proc: -- FPS</span>
+          <span class="badge" id="telemetryLatency">Ping: -- ms</span>
+        </div>
+      </div>
+
+      <!-- Video Feed Container -->
+      <div class="video-container" id="videoBox">
+        <img id="liveStreamImg" src="/api/stream/live" alt="PySURVEILLANCE Live MJPEG Stream">
+        <canvas id="liveCanvas" style="display: none; width: 100%; height: 100%; object-fit: contain;"></canvas>
+        <div id="streamOverlay" class="stream-overlay">
+          <div class="overlay-box" id="overlayCategory">MONITORING ACTIVE</div>
+          <div class="overlay-box" id="overlayTimestamp">--:--:--</div>
+        </div>
+      </div>
+
+      <!-- Live Image Quality & Exposure Controls -->
+      <div class="image-controls-panel">
+        <div class="controls-panel-header">
+          <span class="panel-icon">🎛️</span>
+          <h3>Live Image Quality & Exposure Controls</h3>
+          <span class="panel-badge" id="liveResBadge">720p HD</span>
+        </div>
+
+        <div class="image-controls-grid">
+          <!-- Resolution Selector -->
+          <div class="control-box">
+            <label>Camera Resolution</label>
+            <div class="btn-group-toggle">
+              <button class="btn-toggle-option" data-res="640x480">480p SD</button>
+              <button class="btn-toggle-option active" data-res="1280x720">720p HD</button>
+              <button class="btn-toggle-option" data-res="1920x1080">1080p FHD</button>
+            </div>
+          </div>
+
+          <!-- Quality Slider -->
+          <div class="control-box">
+            <div class="slider-header">
+              <label for="sliderQuality">Stream Quality</label>
+              <span id="sliderQualityVal" class="slider-badge">95%</span>
+            </div>
+            <input type="range" id="sliderQuality" class="slider-range" min="50" max="100" value="95" step="1">
+          </div>
+
+          <!-- Anti-Overexposure / Gamma Slider -->
+          <div class="control-box">
+            <div class="slider-header">
+              <label for="sliderGamma">☀️ Anti-Overexposure / Glare Cut</label>
+              <span id="sliderGammaVal" class="slider-badge">0.75x</span>
+            </div>
+            <input type="range" id="sliderGamma" class="slider-range" min="0.40" max="1.50" value="0.75" step="0.05">
+            <div class="slider-subtext">Lower values cut blown-out highlights and fix overexposure</div>
+          </div>
+
+          <!-- Brightness Slider -->
+          <div class="control-box">
+            <div class="slider-header">
+              <label for="sliderBrightness">💡 Brightness</label>
+              <span id="sliderBrightnessVal" class="slider-badge">-15</span>
+            </div>
+            <input type="range" id="sliderBrightness" class="slider-range" min="-60" max="60" value="-15" step="5">
+          </div>
+
+          <!-- Contrast Slider -->
+          <div class="control-box">
+            <div class="slider-header">
+              <label for="sliderContrast">🌓 Contrast</label>
+              <span id="sliderContrastVal" class="slider-badge">1.15x</span>
+            </div>
+            <input type="range" id="sliderContrast" class="slider-range" min="0.70" max="1.80" value="1.15" step="0.05">
+          </div>
+
+          <!-- Quick Hardware Action Toggles -->
+          <div class="control-box hardware-toggles-box">
+            <label>Hardware Camera Controls</label>
+            <div class="quick-toggle-row">
+              <button id="toggleHdrBtn" class="btn btn-outline btn-sm">Auto-HDR: OFF</button>
+              <button id="toggleTorchBtn" class="btn btn-outline btn-sm">🔦 Torch: OFF</button>
+              <button id="toggleNightBtn" class="btn btn-outline btn-sm">🌙 Night Vision: OFF</button>
+              <button id="resetControlsBtn" class="btn btn-outline btn-sm text-sub">↺ Reset</button>
+            </div>
+          </div>
+
+          <!-- Automatic Flashlight & Microphone Activity Controls -->
+          <div class="control-box flashlight-control-box" style="margin-top: 0.75rem; background: var(--bg-card); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <label style="margin: 0; font-size: 0.85rem;"><strong>🔦 Flashlight Automation</strong></label>
+              <span id="flashlightStatusPill" class="badge">AUTO [OFF]</span>
+            </div>
+            <div class="btn-segmented" style="display: flex; gap: 0.25rem;">
+              <button id="btnFlashlightAuto" class="btn-seg-option active" style="flex: 1;" title="Automatic multi-sensor control (Camera + Microphone in low-light)">⚡ Auto</button>
+              <button id="btnFlashlightManual" class="btn-seg-option" style="flex: 1;" title="Manual Force ON (Temporary override)">💡 Force ON</button>
+              <button id="btnFlashlightOff" class="btn-seg-option" style="flex: 1;" title="Force OFF (Automation disabled)">⚫ Force OFF</button>
+            </div>
+            <div id="flashlightDetailRow" class="text-sub" style="font-size: 0.75rem; margin-top: 0.4rem; display: flex; justify-content: space-between;">
+              <span>Trigger: <strong id="flashlightTriggerText">None</strong></span>
+              <span>Audio: <strong id="audioStatusText">Silent</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Control Bar -->
+      <div class="control-bar">
+        <button id="toggleMonitoringBtn" class="btn btn-danger">
+          🛑 Stop Monitoring
+        </button>
+        <button id="testAlarmBtn" class="btn btn-warning">
+          🔊 Test Laptop Alarm
+        </button>
+        <button id="testPushBtn" class="btn btn-info" title="Send a test push message to this browser">
+          🔔 Test Push
+        </button>
+        <button id="testCamBtn" class="btn btn-secondary">
+          📹 Test Camera
+        </button>
+        <button id="snapshotBtn" class="btn btn-secondary">
+          📸 Snapshot
+        </button>
+      </div>
+
+      <!-- Policy Notice -->
+      <div class="policy-notice">
+        <strong>⚠️ Classification Policy:</strong> Standard COCO models cannot verify monkeys. Untrusted animal detections report as <em>"Animal detected — species unconfirmed"</em>. Facial recognition is strictly disabled.
+      </div>
+    </section>
+
+    <!-- Right Column: System Telemetry & Event Surveillance -->
+    <section class="telemetry-panel">
+      <!-- Diagnostics Cards Grid -->
+      <div class="telemetry-cards">
+        <!-- Today's Events Count Card -->
+        <div class="card metric-card">
+          <div class="metric-header">
+            <span>Today's Incidents</span>
+            <span id="todayEventsBadge" class="badge">0 Today</span>
+          </div>
+          <div class="metric-val" id="todayEventsCount">0</div>
+          <div class="progress-bar-bg">
+            <div id="todayEventsBar" class="progress-bar-fill" style="width: 100%; background: var(--color-brand);"></div>
+          </div>
+          <div class="metric-sub" id="lastDetectionSub">Last detection: <strong id="lastDetectionTimeText">None</strong></div>
+        </div>
+
+        <!-- Storage & Retention Card -->
+        <div class="card metric-card">
+          <div class="metric-header">
+            <span>Storage Retention</span>
+            <span id="storagePercentBadge" class="badge">0% Used</span>
+          </div>
+          <div class="metric-val" id="storageUsedMbText">0 MB</div>
+          <div class="progress-bar-bg">
+            <div id="storageBar" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+          <div class="metric-sub storage-sub-row">
+            <span>14d auto-purge (<span id="storageImageCount">0</span> images)</span>
+            <button id="purgeStorageBtn" class="btn-clean-link" title="Purge expired images now">🧹 Clean</button>
+          </div>
+        </div>
+
+        <!-- CPU Load Card -->
+        <div class="card metric-card">
+          <div class="metric-header">
+            <span>CPU Load</span>
+            <span id="metricCpuBadge" class="badge">Normal</span>
+          </div>
+          <div class="metric-val" id="metricCpu">--%</div>
+          <div class="progress-bar-bg">
+            <div id="metricCpuBar" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+          <div class="metric-sub" id="throttleStatus">Auto-throttle: Idle</div>
+        </div>
+
+        <!-- RAM Usage Card -->
+        <div class="card metric-card">
+          <div class="metric-header">
+            <span>RAM Usage</span>
+            <span id="metricRamBadge" class="badge">6.7 GB</span>
+          </div>
+          <div class="metric-val" id="metricRam">--%</div>
+          <div class="progress-bar-bg">
+            <div id="metricRamBar" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+          <div class="metric-sub" id="metricRamMb">-- MB used</div>
+        </div>
+
+        <!-- Ambient Audio Activity Card -->
+        <div class="card metric-card">
+          <div class="metric-header">
+            <span>Ambient Audio (Mic)</span>
+            <span id="metricAudioBadge" class="badge">Silent</span>
+          </div>
+          <div class="metric-val" id="metricAudioVal">0%</div>
+          <div class="progress-bar-bg">
+            <div id="metricAudioBar" class="progress-bar-fill" style="width: 0%; background: #38bdf8;"></div>
+          </div>
+          <div class="metric-sub" id="metricAudioSub">Noise floor: -- | Flashlight: Auto</div>
+        </div>
+      </div>
+
+      <!-- Latest Event Snapshot Showcase -->
+      <div class="card latest-event-showcase-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="live-tag pulse">LATEST EVENT</span>
+            <h3 id="latestEventTitle">Awaiting Surveillance Event</h3>
+          </div>
+          <span id="latestEventTimeBadge" class="badge">--:--:--</span>
+        </div>
+        <div class="latest-event-body">
+          <div class="latest-event-thumb-container" id="latestEventThumbBox">
+            <img id="latestEventImg" src="/api/stream/snapshot" alt="Latest Event Snapshot" onerror="this.src='/api/stream/snapshot'">
+            <div id="latestEventTagBadge" class="latest-event-badge-tag">INITIAL</div>
+          </div>
+          <div class="latest-event-details">
+            <div class="latest-event-badge-row">
+              <span id="latestEventCategoryBadge" class="badge cat-motion">General motion</span>
+              <span id="latestEventNightBadge" class="badge badge-night-tag">☀️ Day Mode</span>
+            </div>
+            <div class="latest-event-desc" id="latestEventLabelText">Camera monitoring field actively. No alarms triggered yet.</div>
+            <div class="latest-event-stats">
+              <span>Confidence: <strong id="latestEventConfidence">--%</strong></span>
+              <span class="sep">•</span>
+              <span id="latestEventAgeText">Waiting...</span>
+            </div>
+            <button id="viewLatestEventBtn" class="btn btn-secondary btn-sm latest-event-view-btn">🔍 View Full Incident</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recorded Incidents Section: Timeline & Gallery -->
+      <div class="card event-feed-card">
+        <div class="card-header">
+          <div class="card-title">
+            <h2>🚨 Recorded Incident History</h2>
+          </div>
+          <!-- View Mode Switcher -->
+          <div class="feed-view-tabs">
+            <button id="viewTabTimeline" class="stream-tab active" title="Chronological incident sessions">📋 Timeline</button>
+            <button id="viewTabGallery" class="stream-tab" title="Image snapshot gallery">🖼️ Image Gallery</button>
+          </div>
+        </div>
+
+        <div class="card-subheader">
+          <!-- Event Category Filter Tabs -->
+          <div class="event-filter-tabs">
+            <button class="filter-tab active" data-filter="all">All (<span id="countAll">0</span>)</button>
+            <button class="filter-tab" data-filter="Person">Person (<span id="countPerson">0</span>)</button>
+            <button class="filter-tab" data-filter="Bird">Bird (<span id="countBird">0</span>)</button>
+            <button class="filter-tab" data-filter="Animal detected — species unconfirmed">Animal (<span id="countAnimal">0</span>)</button>
+            <button class="filter-tab" data-filter="Possible monkey">Monkey (<span id="countMonkey">0</span>)</button>
+            <button class="filter-tab" data-filter="General motion">Motion (<span id="countMotion">0</span>)</button>
+          </div>
+        </div>
+
+        <!-- Event Cards Container -->
+        <div id="eventsList" class="events-grid">
+          <div class="empty-state">No incidents recorded yet. Field is peaceful.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- QR Code Modal for Phone -->
+  <div id="qrModal" class="modal">
+    <div class="modal-content text-center">
+      <div class="modal-header">
+        <h3>📱 Mobile Access (Redmi 10 / Phone)</h3>
+        <button class="modal-close" data-close="qrModal">&times;</button>
+      </div>
+      <p class="modal-sub">Scan this QR code with your phone camera or browser to open the dashboard:</p>
+      <div id="qrCodeContainer" class="qr-container">Loading QR...</div>
+      <div class="modal-url-box">
+        <span id="qrUrlDisplay">http://...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIN Modal -->
+  <div id="pinModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>🔒 Dashboard PIN Verification</h3>
+        <button class="modal-close" data-close="pinModal">&times;</button>
+      </div>
+      <p class="modal-sub">Enter your 4-digit dashboard PIN to unlock administrative controls:</p>
+      <form id="pinForm">
+        <input type="password" id="pinInput" class="form-input" placeholder="Enter PIN (Default: 1234)" autofocus maxlength="8">
+        <div id="pinError" class="form-error"></div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Unlock Dashboard</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3>⚙️ PySURVEILLANCE Settings</h3>
+        <button class="modal-close" data-close="settingsModal">&times;</button>
+      </div>
+
+      <div class="settings-tabs">
+        <div class="settings-section">
+          <h4>📱 Camera Settings (Redmi 10 IP Webcam)</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Phone IP Address</label>
+              <input type="text" id="cfgPhoneIp" class="form-input" value="192.168.31.211">
+            </div>
+            <div class="form-group">
+              <label>Port</label>
+              <input type="number" id="cfgPhonePort" class="form-input" value="8080">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Video Endpoint</label>
+              <input type="text" id="cfgVideoEp" class="form-input" value="/video">
+            </div>
+            <div class="form-group">
+              <label>Snapshot Endpoint</label>
+              <input type="text" id="cfgSnapshotEp" class="form-input" value="/shot.jpg">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button id="cfgTestCamBtn" class="btn btn-secondary btn-sm">⚡ Test Camera Connection Now</button>
+            <span id="cfgCamTestStatus" class="test-result"></span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4>🎯 Detection & Performance Targets</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Motion Detection Target FPS</label>
+              <input type="number" id="cfgMotionFps" class="form-input" min="1" max="30" value="8">
+            </div>
+            <div class="form-group">
+              <label>AI Inference Target FPS</label>
+              <input type="number" id="cfgAiFps" class="form-input" min="0.5" max="10" step="0.5" value="1.5">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Motion Sensitivity (Diff Threshold)</label>
+              <input type="number" id="cfgMotionThresh" class="form-input" value="25">
+            </div>
+            <div class="form-group">
+              <label>AI Confidence Minimum</label>
+              <input type="number" id="cfgConfidence" class="form-input" min="0.1" max="0.95" step="0.05" value="0.40">
+            </div>
+          </div>
+          <div class="form-checkbox">
+            <input type="checkbox" id="cfgAutoThrottle" checked>
+            <label for="cfgAutoThrottle">Automatically reduce processing if laptop CPU exceeds 85%</label>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4>🔊 Laptop-Side Audio Alarms & Cooldowns</h4>
+          <div class="form-checkbox">
+            <input type="checkbox" id="cfgSoundEnabled" checked>
+            <label for="cfgSoundEnabled">Enable Laptop Speaker Audio Alerts</label>
+          </div>
+          <div class="form-row" style="margin-top: 0.5rem; gap: 1rem;">
+            <div class="form-checkbox">
+              <input type="checkbox" id="cfgAlarmMotion">
+              <label for="cfgAlarmMotion">Alarm on General Motion</label>
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="cfgAlarmUnknown">
+              <label for="cfgAlarmUnknown">Alarm on Unknown Objects</label>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Person Cooldown (seconds)</label>
+              <input type="number" id="cfgCdPerson" class="form-input" value="30">
+            </div>
+            <div class="form-group">
+              <label>Animal / Monkey Cooldown (seconds)</label>
+              <input type="number" id="cfgCdAnimal" class="form-input" value="25">
+            </div>
+            <div class="form-group">
+              <label>General Motion Cooldown (seconds)</label>
+              <input type="number" id="cfgCdMotion" class="form-input" value="15">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4>🔔 Connected Browser Force Push Messages</h4>
+          <p class="settings-help">Force real-time alert messages, browser notifications, and chimes to any connected phone or laptop browser.</p>
+          <div class="form-checkbox">
+            <input type="checkbox" id="cfgPushEnabled" checked>
+            <label for="cfgPushEnabled"><strong>Enable Force Push Messages to Connected Browsers</strong></label>
+          </div>
+          <div class="form-checkbox" style="margin-left: 1.5rem;">
+            <input type="checkbox" id="cfgPushDesktop" checked>
+            <label for="cfgPushDesktop">Show Native Desktop / Browser Notification Popups</label>
+          </div>
+          <div class="form-checkbox" style="margin-left: 1.5rem;">
+            <input type="checkbox" id="cfgPushAudio" checked>
+            <label for="cfgPushAudio">Play Browser Audio Chime on Alert (Mobile & Laptop)</label>
+          </div>
+          <div class="form-row" style="margin-top: 0.5rem; margin-left: 1.5rem; gap: 1rem;">
+            <div class="form-checkbox">
+              <input type="checkbox" id="cfgPushMotion">
+              <label for="cfgPushMotion">Push on General Motion</label>
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="cfgPushUnknown">
+              <label for="cfgPushUnknown">Push on Unknown Objects</label>
+            </div>
+          </div>
+          <div style="margin-top: 0.75rem;">
+            <button type="button" id="cfgTestPushBtn" class="btn btn-secondary btn-sm">🧪 Send Test Push to this Browser</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4>🌙 Dedicated Night Surveillance Settings</h4>
+          <p class="settings-help">Tuned background subtraction and illumination filtering for low-light conditions.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Night Mode Policy</label>
+              <select id="cfgNightModeSelect" class="form-input">
+                <option value="auto">⚡ Auto (Adaptive based on measured lux)</option>
+                <option value="on">🌙 Force Night Profile (High noise tolerance)</option>
+                <option value="off">☀️ Force Day Profile (Normal sensitivity)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Auto Night Lux Threshold</label>
+              <input type="number" id="cfgNightAutoThresh" class="form-input" min="15" max="90" value="45">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Day Motion Sensitivity (Threshold)</label>
+              <input type="number" id="cfgDayThresh" class="form-input" value="25">
+            </div>
+            <div class="form-group">
+              <label>Night Motion Sensitivity (Threshold)</label>
+              <input type="number" id="cfgNightThresh" class="form-input" value="34">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Day Min Motion Area (px)</label>
+              <input type="number" id="cfgDayMinArea" class="form-input" value="250">
+            </div>
+            <div class="form-group">
+              <label>Night Min Motion Area (px)</label>
+              <input type="number" id="cfgNightMinArea" class="form-input" value="350">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4>💾 Storage Retention & Event Deduplication</h4>
+          <p class="settings-help">Pure event-based JPEG persistence (NO continuous video). Automatic 14-day purging.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Event Image Retention (Days)</label>
+              <input type="number" id="cfgRetentionDays" class="form-input" min="1" max="90" value="14">
+            </div>
+            <div class="form-group">
+              <label>Max Storage Quota (MB)</label>
+              <input type="number" id="cfgMaxStorageMb" class="form-input" min="256" max="10240" value="2048">
+            </div>
+            <div class="form-group">
+              <label>Session Pause Timeout (sec)</label>
+              <input type="number" id="cfgSessionTimeout" class="form-input" min="2" max="15" value="4">
+            </div>
+          </div>
+          <div class="form-row" style="gap: 1.5rem; margin-top: 0.5rem;">
+            <div class="form-checkbox">
+              <input type="checkbox" id="cfgCapInitial" checked disabled>
+              <label for="cfgCapInitial">Capture Initial Event Frame (Always active)</label>
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="cfgCapChange" checked>
+              <label for="cfgCapChange">Capture Change Frame on new object/confidence jump</label>
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="cfgCapFinal" checked>
+              <label for="cfgCapFinal">Capture Final Frame when motion ceases</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4>🔦 Automatic Flashlight & Audio Detection</h4>
+          <p class="settings-help">Complementary visual motion and ambient microphone activity triggers in low-light conditions.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Flashlight Mode</label>
+              <select id="cfgFlashlightMode" class="form-input">
+                <option value="auto">⚡ Auto (Camera motion + Microphone in low light)</option>
+                <option value="manual">💡 Manual (Force ON)</option>
+                <option value="off">⚫ Off (Automation disabled)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Low Light Lux Threshold</label>
+              <input type="number" id="cfgFlashlightLux" class="form-input" min="10" max="80" value="45">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Minimum ON Duration (sec)</label>
+              <input type="number" id="cfgFlashlightMinOn" class="form-input" min="5" max="30" value="10">
+            </div>
+            <div class="form-group">
+              <label>Maximum ON Duration (sec, safety cutoff)</label>
+              <input type="number" id="cfgFlashlightMaxOn" class="form-input" min="30" max="300" value="120">
+            </div>
+            <div class="form-group">
+              <label>Inactivity Auto-OFF (sec)</label>
+              <input type="number" id="cfgFlashlightInactivity" class="form-input" min="5" max="60" value="15">
+            </div>
+          </div>
+          <div class="form-checkbox" style="margin-top: 0.5rem;">
+            <input type="checkbox" id="cfgAudioEnabled" checked>
+            <label for="cfgAudioEnabled">Enable Ambient Microphone Activity Sensor</label>
+          </div>
+          <div class="form-row" style="margin-top: 0.5rem;">
+            <div class="form-group">
+              <label>Audio Spike Sensitivity Multiplier</label>
+              <input type="number" id="cfgAudioSpike" class="form-input" min="1.5" max="8.0" step="0.5" value="3.0">
+            </div>
+            <div class="form-group">
+              <label>Sustained Sound RMS Threshold</label>
+              <input type="number" id="cfgAudioSustained" class="form-input" min="1000" max="10000" step="500" value="2500">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4>⚡ Power & Security</h4>
+          <div class="form-checkbox">
+            <input type="checkbox" id="cfgPreventSleep" checked>
+            <label for="cfgPreventSleep">Prevent Laptop from Sleeping/Suspending during monitoring</label>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Change Dashboard PIN</label>
+              <input type="password" id="cfgNewPin" class="form-input" placeholder="Leave blank to keep current">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Event Detail Modal -->
+  <div id="eventDetailModal" class="modal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="eventDetailTitle">Event Details</h3>
+        <button class="modal-close" data-close="eventDetailModal">&times;</button>
+      </div>
+      <div class="event-detail-body">
+        <div class="event-detail-image-box">
+          <img id="eventDetailImg" src="" alt="Event Image">
+        </div>
+        <div class="event-detail-meta">
+          <div class="meta-row"><strong>Category:</strong> <span id="eventDetailCategory" class="badge">--</span></div>
+          <div class="meta-row"><strong>Timestamp:</strong> <span id="eventDetailTimestamp">--</span></div>
+          <div class="meta-row"><strong>Confidence:</strong> <span id="eventDetailConfidence">--</span></div>
+          <div class="meta-row"><strong>Label:</strong> <span id="eventDetailLabel">--</span></div>
+          <div class="meta-row">
+            <strong>Detections:</strong>
+            <pre id="eventDetailJson" class="json-box"></pre>
+          </div>
+          <div class="modal-footer" style="padding: 1rem 0 0 0;">
+            <button id="deleteEventBtn" class="btn btn-danger btn-sm">🗑️ Delete Event</button>
+            <a id="downloadEventImgBtn" href="#" download class="btn btn-secondary btn-sm">⬇️ Download Snapshot</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-App Force Push Floating Banner Container -->
+  <div id="pushBannerContainer" class="push-banner-container" aria-live="assertive"></div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>
