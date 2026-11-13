@@ -4,6 +4,10 @@ __pycache__/
 *.pyo
 .pytest_cache/
 
+# Runtime configuration & credentials
+wheat_watch_config.json
+*.local.json
+
 # Storage and incident database
 storage/events.db
 storage/*.db

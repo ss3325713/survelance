@@ -201,13 +201,33 @@ class Config:
 
     @classmethod
     def load(cls) -> "Config":
+        EXPOSED_SECRETS = {
+            "d9cf8c1fe9c4aed7a04c564aebf364c8a52fc1aa9afd036def9297e172679649",
+        }
+        EXPOSED_HASHES = {
+            "7f75353ea4783e6eb52a0b53f49af9b0c9d4e52f994b1aee10e7c614897c9a57",
+        }
+
         if CONFIG_FILE_PATH.exists():
             try:
                 with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 merged = cls._merge_defaults(DEFAULT_CONFIG, data)
                 server_cfg = merged.setdefault("server", {})
-                
+
+                # Rotate exposed or missing session secret
+                if not server_cfg.get("session_secret") or server_cfg.get("session_secret") in EXPOSED_SECRETS:
+                    server_cfg["session_secret"] = secrets.token_hex(32)
+                    logger.info("Generated and rotated fresh session secret token.")
+
+                # Invalidate exposed PIN hash
+                if server_cfg.get("dashboard_pin_hash") in EXPOSED_HASHES:
+                    server_cfg["dashboard_pin_hash"] = ""
+                    server_cfg["dashboard_pin_salt"] = ""
+                    server_cfg["dashboard_pin"] = "****"
+                    server_cfg["pin_initialized"] = False
+                    logger.warning("Revoked exposed master PIN hash. Safe reinitialization required.")
+
                 # Check for existing valid salted hash
                 has_hash = bool(server_cfg.get("dashboard_pin_hash") and server_cfg.get("dashboard_pin_salt"))
                 
@@ -243,9 +263,21 @@ class Config:
             except Exception as e:
                 logger.error(f"Failed to load config, falling back to defaults: {e}")
 
-        # Fresh default config
-        instance = cls(dict(DEFAULT_CONFIG))
+        # Fresh default config (when wheat_watch_config.json does not exist)
+        example_path = Path("wheat_watch_config.example.json")
+        base_data = dict(DEFAULT_CONFIG)
+        if example_path.exists():
+            try:
+                with open(example_path, "r", encoding="utf-8") as f:
+                    ex_data = json.load(f)
+                base_data = cls._merge_defaults(base_data, ex_data)
+            except Exception as e:
+                logger.warning(f"Failed to read example config template: {e}")
+
+        instance = cls(base_data)
         server_cfg = instance._data.setdefault("server", {})
+        server_cfg["session_secret"] = secrets.token_hex(32)
+
         env_pin = os.environ.get("PYSURVEILLANCE_INITIAL_PIN")
         if env_pin and len(env_pin.strip()) >= 4:
             from wheat_watch.security import hash_pin
@@ -255,7 +287,11 @@ class Config:
             server_cfg["dashboard_pin"] = "****"
             server_cfg["pin_initialized"] = True
         else:
+            server_cfg["dashboard_pin_hash"] = ""
+            server_cfg["dashboard_pin_salt"] = ""
+            server_cfg["dashboard_pin"] = "****"
             server_cfg["pin_initialized"] = False
+
         instance.save()
         return instance
 

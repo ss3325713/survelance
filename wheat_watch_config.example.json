@@ -68,11 +68,11 @@
   "video_recording": {
     "enabled": true,
     "inactivity_timeout_sec": 15.0,
-    "max_segment_duration_sec": 600.0,
+    "max_segment_duration_sec": 60.0,
     "recording_fps": 10.0,
     "max_extracted_frames": 6,
     "min_sharpness": 35.0,
-    "temp_directory": "storage/temp_recordings"
+    "temp_storage_dir": "storage/temp_recordings"
   },
   "alarm": {
     "sound_enabled": true,

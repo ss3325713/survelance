@@ -118,6 +118,11 @@ def test_security_subsystem():
     print("  [✓] Unauthenticated request to protected route returned 401.")
 
     # C. Correct PIN issues session token and sets cookie
+    if not app_config.is_pin_initialized:
+        setup_resp = client.post("/api/auth/setup", json={"pin": "1234", "confirm_pin": "1234"})
+        assert setup_resp.status_code == 200
+        print("  [✓] First-run master PIN setup verified.")
+
     verify_resp = client.post("/api/auth/verify", json={"pin": "1234"})
     assert verify_resp.status_code == 200
     token = verify_resp.json()["token"]

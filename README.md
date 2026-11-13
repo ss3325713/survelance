@@ -14,7 +14,7 @@
 **PySURVEILLANCE** is an edge-first, resource-conscious intelligent surveillance and perimeter defense platform. It decouples high-resolution network video and audio acquisition from asynchronous neural object detection, visual motion background subtraction, intelligent lighting automation, and incident forensics.
 
 ### Key Operational Capabilities
-- **Universal Stream Ingestion:** Connects to standard HTTP/MJPEG streams, RTSP video streams, and uncompressed linear PCM network audio without proprietary vendor locks.
+- **Decoupled Stream Ingestion:** Ingests standard HTTP/MJPEG and RTSP video feeds alongside independent linear PCM network audio without proprietary vendor locks.
 - **Motion-Triggered Video Recording:** Starts video capture immediately upon qualifying camera motion without waiting for neural inference.
 - **Decoupled Incident Processing Queue:** Enqueues recorded video segments (`QUEUED`), extracts high-sharpness forensic frames using Laplacian variance, and performs YOLOv8n object classification in a background worker without blocking live surveillance.
 - **Hardware-Adaptive Lighting Automation:** Controls external LED illumination or phone hardware torches automatically upon detecting motion in darkness with a 15-second continuous-motion reset timer.
@@ -144,10 +144,20 @@ PySURVEILLANCE does not depend on proprietary hardware. Any modern Linux machine
 - **Audio Output (Optional):** PulseAudio, PipeWire, or ALSA system output for host-side acoustic deterrence.
 
 ### 2. Camera & Video Source Support
+
+PySURVEILLANCE strictly decouples video stream ingestion from audio processing:
+
 | Device Profile | Supported Video Protocols | Audio Protocol | Hardware Lighting | Telemetry Support |
 |---|---|---|---|---|
 | **Auto-Detect / IP Webcam** | HTTP MJPEG (`/video`), JPEG Snapshot (`/shot.jpg`) | Linear PCM WAV (`/audio.wav`) | Supported (`/enabletorch`, `/disabletorch`) | Battery %, Battery Temp, Voltage, Optics |
-| **Generic IP Camera / RTSP** | RTSP (`rtsp://user:pass@ip:554/h264`), HTTP MJPEG | HTTP PCM WAV or separate audio stream | Cleanly reported as "Unsupported / N/A" | Reported as "External Power (AC/PoE)" |
+| **Generic IP Camera / RTSP** | RTSP (`rtsp://user:pass@ip:554/...`), HTTP MJPEG | Separate HTTP PCM WAV stream (Optional) | Cleanly reported as "Unsupported / N/A" | Reported as "External Power (AC/PoE)" |
+
+> [!NOTE]
+> **Audio Stream & RTSP Protocol Separation:**
+> PySURVEILLANCE ingests RTSP video streams as **video-only** via OpenCV's `VideoCapture` backend. An RTSP video connection **does NOT automatically provide audio capture or analysis**. If acoustic monitoring is required, configure a separate compatible uncompressed HTTP linear PCM/WAV audio stream endpoint (such as an IP camera's `/audio.wav` feed) or leave audio monitoring disabled.
+>
+> **Hardware Integrations:**
+> Specialized camera controls (such as hardware torch toggles via `/enabletorch`/`/disabletorch` and battery telemetry via `/sensors.json`) are optional extensions designed for Android IP Webcam. When connected to generic IP cameras or standard RTSP endpoints, the system automatically detects standard streams and safely flags hardware toggles and battery sensors as "Unsupported / N/A" without throwing errors or interrupting surveillance.
 
 ---
 
@@ -217,6 +227,12 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. On first la
 - PySURVEILLANCE binds to `0.0.0.0:8000` to serve devices on your private Wi-Fi network.
 - Public internet traffic is rejected by default (HTTP 403 Forbidden). Only RFC 1918 private IP subnets (`192.168.0.0/16`, `10.0.0.0/8`, `172.16.0.0/12`) and loopback (`127.0.0.1`) are permitted.
 
+### 4. Configuration File & Git History Advisory
+- **Active Configuration File (`wheat_watch_config.json`):** Contains runtime secrets, PIN hashes, and local network IPs. It is ignored by Git (`.gitignore`).
+- **Historical Git Commits Advisory:** Untracking `wheat_watch_config.json` in a new commit prevents future commits from tracking local secrets, but **does NOT remove the file from prior Git history**. If older commits containing configuration secrets were pushed to a public repository, those credentials should be treated as exposed.
+- **Automated Revocation & Migration:** PySURVEILLANCE actively detects previously committed default session secrets and PIN hashes upon startup. If an exposed secret or PIN hash is detected, it automatically rotates the session secret, revokes the exposed PIN hash, and mandates fresh initialization via the setup screen or `PYSURVEILLANCE_INITIAL_PIN` environment variable without deleting or disturbing the SQLite incident database.
+- **Git History Rewriting:** If completely removing sensitive files from historical commits is required, use tools such as `git filter-repo` or BFG Repo-Cleaner before publishing.
+
 ---
 
 ## 🌐 Secure Remote Access (VPN Guide)
@@ -252,7 +268,7 @@ PySURVEILLANCE uses an asynchronous pipeline to ensure that real-time video capt
     RECORDING ────────► Writes temporary MP4 video segment (10 FPS)
          │
          ├── Continues while motion occurs (15s inactivity countdown resets on motion)
-         ├── Segment duration cap reached (600s default) ➔ Rotates to next segment
+         ├── Segment duration cap reached (60s default) ➔ Rotates to next segment
          │
          ▼
     FINALIZING ───────► Flushes MP4 container and closes OpenCV VideoWriter
@@ -289,7 +305,7 @@ PySURVEILLANCE uses an asynchronous pipeline to ensure that real-time video capt
 | | `auto_throttle_cpu` | `true` | Throttles background processing when host CPU > 85% |
 | **`video_recording`**| `enabled` | `true` | Enables automatic motion-triggered video recording |
 | | `inactivity_timeout_sec` | `15.0` | Inactivity countdown before closing a recording segment |
-| | `max_segment_duration_sec` | `600.0` | Maximum continuous recording duration before segment split |
+| | `max_segment_duration_sec` | `60.0` | Maximum continuous recording duration before segment split |
 | | `max_extracted_frames` | `6` | Maximum sharpest representative frames extracted per video |
 | | `min_sharpness` | `35.0` | Laplacian variance threshold for rejecting motion-blurred frames |
 | **`flashlight`** | `mode` | `"auto"` | Mode: `"auto"` (motion in darkness), `"manual"` (on), `"off"` |

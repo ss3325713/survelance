@@ -4,7 +4,7 @@ Features:
 1. Motion-triggered video recording: Starts immediately when camera motion is detected,
    without waiting for AI classification.
 2. Inactivity timer: 15-second countdown timer that resets with every new qualifying motion.
-3. Maximum segment duration: Configurable segment cap (default 10 minutes = 600s). If continuous
+3. Maximum segment duration: Configurable segment cap (default 60s). If continuous
    motion exceeds cap, current segment cleanly rolls over into the next segment under the same session.
 4. Separate segments & incident linking: Multiple video segments linked to the parent incident session.
 5. Persistent Queue: SQLite-backed video_jobs table tracking the exact lifecycle:

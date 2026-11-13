@@ -1,12 +1,15 @@
-"""Processing pipeline coordinator for Wheat Watch.
+"""Processing pipeline coordinator for PySURVEILLANCE.
 
-Event-based surveillance system with:
-1. Pure image-based event persistence (ZERO continuous video recording).
-2. Grouped event sessions with deduplication (Initial, Change, and Final image capture).
-3. Dedicated Night Surveillance Mode (Auto / On / Off) with ambient lux adaptation.
-4. Guaranteed capture of all motion events (never silently discarded).
-5. Safe retention management protecting active ongoing events.
-6. Real-time broadcast to all connected dashboards and laptop audio alarms.
+Integrated event detection, video recording, and background processing architecture:
+1. Live camera frame ingestion and multiplexing across decoupled worker threads.
+2. Motion-triggered video recording: Starts immediately upon qualifying visual motion (MOG2).
+3. Configurable segment rotation (60s cap) and continuous-motion inactivity reset (15s).
+4. Asynchronous persistent processing queue: Decoupled background worker extracts representative
+   high-sharpness keyframes (Laplacian variance) and executes YOLOv8n ONNX classification.
+5. Grouped incident sessions with deduplication (Initial, Change, Final frames and video extracts).
+6. Ambient lux and darkness adaptation for intelligent hardware illumination control.
+7. Local storage retention quotas protecting active ongoing incident sessions.
+8. Real-time telemetry broadcasting via SSE, rate-limited audio deterrents, and push alerts.
 """
 
 from __future__ import annotations

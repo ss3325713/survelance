@@ -2509,7 +2509,7 @@
       const vid = cfg.video_recording || {};
       if (DOM.cfgVideoEnabled) DOM.cfgVideoEnabled.checked = vid.enabled !== false;
       if (DOM.cfgVideoInactivityTimeout) DOM.cfgVideoInactivityTimeout.value = vid.inactivity_timeout_sec || 15;
-      if (DOM.cfgVideoMaxDuration) DOM.cfgVideoMaxDuration.value = vid.max_segment_duration_sec || 600;
+      if (DOM.cfgVideoMaxDuration) DOM.cfgVideoMaxDuration.value = vid.max_segment_duration_sec || 60;
       if (DOM.cfgVideoFps) DOM.cfgVideoFps.value = vid.recording_fps || 10;
       if (DOM.cfgVideoMaxExtracts) DOM.cfgVideoMaxExtracts.value = vid.max_extracted_frames || 6;
       if (DOM.cfgVideoMinSharpness) DOM.cfgVideoMinSharpness.value = vid.min_sharpness || 35;
@@ -2593,7 +2593,7 @@
           video_recording: {
             enabled: DOM.cfgVideoEnabled ? DOM.cfgVideoEnabled.checked : true,
             inactivity_timeout_sec: DOM.cfgVideoInactivityTimeout ? parseFloat(DOM.cfgVideoInactivityTimeout.value) : 15.0,
-            max_segment_duration_sec: DOM.cfgVideoMaxDuration ? parseFloat(DOM.cfgVideoMaxDuration.value) : 600.0,
+            max_segment_duration_sec: DOM.cfgVideoMaxDuration ? parseFloat(DOM.cfgVideoMaxDuration.value) : 60.0,
             recording_fps: DOM.cfgVideoFps ? parseFloat(DOM.cfgVideoFps.value) : 10.0,
             max_extracted_frames: DOM.cfgVideoMaxExtracts ? parseInt(DOM.cfgVideoMaxExtracts.value) : 6,
             min_sharpness: DOM.cfgVideoMinSharpness ? parseFloat(DOM.cfgVideoMinSharpness.value) : 35.0
