@@ -27,7 +27,7 @@
     "target_width": 1280,
     "target_height": 720,
     "motion_fps": 8.0,
-    "motion_threshold": 25,
+    "motion_threshold": 28,
     "min_motion_area": 250,
     "max_motion_percent": 22.0,
     "require_motion_overlap": true,
@@ -40,10 +40,10 @@
   "image_controls": {
     "resolution": "1280x720",
     "quality": 95,
-    "exposure_compensation": -2,
+    "exposure_compensation": -1,
     "gamma": 0.75,
-    "brightness": -15,
-    "contrast": 1.15,
+    "brightness": 5,
+    "contrast": 1.1,
     "auto_hdr": false,
     "white_balance": "auto",
     "torch": true,
@@ -75,7 +75,7 @@
     "prevent_sleep": true
   },
   "push": {
-    "enabled": false,
+    "enabled": true,
     "browser_audio": true,
     "desktop_notifications": true,
     "push_on_general_motion": false,
@@ -90,7 +90,7 @@
     ]
   },
   "night_mode": {
-    "mode": "on",
+    "mode": "auto",
     "auto_threshold": 45.0,
     "hysteresis": 8.0,
     "day": {

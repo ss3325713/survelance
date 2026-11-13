@@ -66,6 +66,13 @@
               <span class="nav-count" id="sidebarIncidentCount">0</span>
             </a>
           </li>
+          <li>
+            <a href="#notifications" class="nav-item" data-view="notifications">
+              <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+              <span class="nav-label">Notifications</span>
+              <span class="nav-tag" id="sidebarPushStatusTag">ACTIVE</span>
+            </a>
+          </li>
         </ul>
 
         <div class="nav-group-label">SENSORS & AUTOMATION</div>
@@ -238,6 +245,11 @@
               </div>
               <div class="stat-value" id="overviewFlashTrigger">CAMERA</div>
               <div class="stat-meta">Inactivity Timeout: 15.0s</div>
+              <div class="overview-torch-quick-actions mt-2" style="display: flex; gap: 4px;">
+                <button id="overviewTorchAutoBtn" class="btn btn-outline btn-sm" style="flex: 1; font-size: 0.68rem; padding: 2px 4px;">⚡ Auto</button>
+                <button id="overviewTorchOnBtn" class="btn btn-outline btn-sm" style="flex: 1; font-size: 0.68rem; padding: 2px 4px;">💡 Force On</button>
+                <button id="overviewTorchOffBtn" class="btn btn-outline btn-sm" style="flex: 1; font-size: 0.68rem; padding: 2px 4px;">⚫ Off</button>
+              </div>
             </div>
           </div>
 
@@ -259,6 +271,7 @@
               <div class="overview-controls-bar">
                 <button id="overviewStartBtn" class="btn btn-primary btn-sm">▶ Start Pipeline</button>
                 <button id="overviewStopBtn" class="btn btn-danger btn-sm">⏹ Stop Pipeline</button>
+                <button id="overviewTorchBtn" class="btn btn-outline btn-sm">🔦 Torch: AUTO [OFF]</button>
                 <button id="overviewSnapshotBtn" class="btn btn-secondary btn-sm">📸 Snapshot</button>
                 <button id="overviewTestPushBtn" class="btn btn-outline btn-sm">🔔 Test Push</button>
               </div>
@@ -330,6 +343,8 @@
                   </div>
                 </div>
                 <div class="hud-controls-right">
+                  <button id="hudTorchBtn" class="btn-hud-action" title="Toggle Phone Flashlight">🔦 Torch: OFF</button>
+                  <button id="fastRefreshBtn" class="btn-hud-action" title="Fast Refresh Stream">⚡ Fast Refresh</button>
                   <button id="snapshotBtn" class="btn-hud-action" title="Capture Incident Snapshot">📸 Snapshot</button>
                   <button id="toggleCinemaFullscreenBtn" class="btn-hud-action" title="Fullscreen Monitor">⛶ Fullscreen</button>
                 </div>
@@ -347,6 +362,14 @@
                 <!-- Quality & Exposure Sliders -->
                 <div class="console-card">
                   <h4>Optical & Stream Parameters</h4>
+                  <div class="param-row">
+                    <label>Camera Resolution (<span id="selectResolutionVal">1280x720</span>)</label>
+                    <select id="selectResolution" class="soc-select">
+                      <option value="640x480">480p (640x480 SD)</option>
+                      <option value="1280x720" selected>720p (1280x720 HD)</option>
+                      <option value="1920x1080">1080p (1920x1080 FHD)</option>
+                    </select>
+                  </div>
                   <div class="param-row">
                     <label>Stream Quality (<span id="sliderQualityVal">95%</span>)</label>
                     <input type="range" id="sliderQuality" class="slider" min="50" max="100" value="95">
@@ -391,6 +414,8 @@
                     <button id="toggleTorchBtn" class="btn btn-outline btn-sm">🔦 Torch: OFF</button>
                     <button id="toggleNightBtn" class="btn btn-outline btn-sm">🌙 Night Vision: OFF</button>
                     <button id="testCamBtn" class="btn btn-outline btn-sm">📡 Probe Camera</button>
+                    <button id="camToggleSurveillanceBtn" class="btn btn-outline btn-sm">🛡️ Surveillance: ARMED</button>
+                    <button id="camFastRefreshBtn" class="btn btn-outline btn-sm">⚡ Fast Refresh</button>
                   </div>
                   <div class="network-quick-info mt-2">
                     <span>Phone IP: <code>192.168.31.211:8080</code></span>
@@ -445,7 +470,21 @@
                   <div class="detail-row"><span class="lbl">Architecture:</span> <strong>YOLOv8 Nano (OpenCV DNN C++)</strong></div>
                   <div class="detail-row"><span class="lbl">Weight File:</span> <code>models/yolov8n.onnx (12.1 MB)</code></div>
                   <div class="detail-row"><span class="lbl">Inference Rate:</span> <strong>1.5 FPS (Event Triggered)</strong></div>
-                  <div class="detail-row"><span class="lbl">Confidence Threshold:</span> <strong>45% (Configurable)</strong></div>
+                  <div class="detail-row"><span class="lbl">Confidence Threshold:</span> <strong id="detConfidenceDisplay">45%</strong></div>
+                </div>
+
+                <!-- Interactive Detection Sliders -->
+                <div class="detection-controls-box mt-3" style="background: var(--bg-surface); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <h4 style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 8px;">Real-time Sensitivity & Inference Controls</h4>
+                  <div class="param-row">
+                    <label>Motion Sensitivity / VarThreshold (<span id="detThresholdVal">25</span>)</label>
+                    <input type="range" id="detThresholdSlider" class="slider" min="10" max="60" value="25">
+                  </div>
+                  <div class="param-row mt-2">
+                    <label>AI Confidence Cutoff (<span id="detConfidenceVal">45%</span>)</label>
+                    <input type="range" id="detConfidenceSlider" class="slider" min="0.25" max="0.85" value="0.45" step="0.05">
+                  </div>
+                  <button id="detSaveSettingsBtn" class="btn btn-primary btn-sm mt-2">💾 Apply Detection Thresholds</button>
                 </div>
 
                 <!-- Ethical Safeguard Notice -->
@@ -471,6 +510,7 @@
               <p class="view-subtitle">Chronological event timeline, multi-frame grouped sessions (Initial, Change, Final), and snapshot gallery.</p>
             </div>
             <div class="incident-toolbar">
+              <input type="text" id="incidentSearchInput" class="soc-input" placeholder="🔍 Search incidents..." style="max-width: 200px; padding: 4px 10px; font-size: 0.75rem;">
               <!-- Timeline vs Gallery View Toggle -->
               <div class="view-mode-tabs">
                 <button id="viewTabTimeline" class="mode-tab active">📜 Timeline</button>
@@ -493,6 +533,72 @@
           <!-- Incident Stream Container -->
           <div id="eventsList" class="incident-stream timeline-layout">
             <div class="empty-state">Loading surveillance incidents...</div>
+          </div>
+        </section>
+
+        <!-- =================================================================
+             VIEW 5: NOTIFICATIONS & ALERT CENTER
+             ================================================================= -->
+        <section class="soc-view" id="view-notifications">
+          <div class="view-header">
+            <div>
+              <h2>Notifications & Deterrence Center</h2>
+              <p class="view-subtitle">Browser push notifications, real-time alert event stream, and laptop audio deterrence alarms.</p>
+            </div>
+            <div class="view-header-actions">
+              <button id="notifTestPushBtn" class="btn btn-outline btn-sm">🔔 Send Test Push</button>
+              <button id="notifTestAlarmBtn" class="btn btn-danger btn-sm">🔊 Test Laptop Alarm</button>
+            </div>
+          </div>
+
+          <div class="overview-grid">
+            <!-- Left: Notification Settings & Health -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Push Alerts & Sound Deterrence</h3>
+                <span id="notifSseStatusBadge" class="badge badge-success">SSE Connected</span>
+              </div>
+              <div class="panel-body">
+                <div class="form-checkbox">
+                  <input type="checkbox" id="notifPushEnabled" checked>
+                  <label for="notifPushEnabled">Enable Real-Time Browser Push Alerts</label>
+                </div>
+                <div class="form-checkbox mt-2">
+                  <input type="checkbox" id="notifSoundAlarmEnabled" checked>
+                  <label for="notifSoundAlarmEnabled">Enable Host Laptop Speaker Alarms (paplay/aplay)</label>
+                </div>
+                <div class="mt-3">
+                  <button id="notifReqPermBtn" class="btn btn-primary btn-sm">📲 Request Browser Notification Permission</button>
+                </div>
+
+                <div class="alarm-cooldowns-box mt-3" style="background: var(--bg-surface); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <h4 style="font-size: 0.78rem; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 6px;">Alarm Cooldown Rules</h4>
+                  <div class="detail-row"><span class="lbl">Person Deterrence:</span> <strong id="notifCdPerson">15s cooldown</strong></div>
+                  <div class="detail-row"><span class="lbl">Animal Deterrence:</span> <strong id="notifCdAnimal">20s cooldown</strong></div>
+                  <div class="detail-row"><span class="lbl">Motion Deterrence:</span> <strong id="notifCdMotion">30s cooldown</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Real-time Alert Stream Log -->
+            <div class="soc-panel">
+              <div class="panel-header">
+                <h3>Live Broadcast Stream Log</h3>
+                <span class="text-sub" style="font-size: 0.75rem;">SSE /api/push/stream</span>
+              </div>
+              <div class="panel-body">
+                <div class="automation-table-container">
+                  <table class="soc-table">
+                    <thead>
+                      <tr><th>Time</th><th>Type</th><th>Message</th></tr>
+                    </thead>
+                    <tbody id="notifEventTableBody">
+                      <tr><td colspan="3" class="text-center text-sub">Listening for real-time surveillance push alerts...</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -830,6 +936,40 @@ sudo tailscale up</pre>
               </div>
             </div>
 
+            <!-- Flashlight Automation Settings -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Flashlight Automation Parameters</h3></div>
+              <div class="panel-body">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Inactivity Auto-OFF Timeout (seconds)</label>
+                    <input type="number" id="cfgFlashTimeout" class="soc-input" value="15" min="5" max="120">
+                  </div>
+                  <div class="form-group">
+                    <label>Darkness Activation Threshold (lux)</label>
+                    <input type="number" id="cfgFlashLuxCutoff" class="soc-input" value="45" min="10" max="100">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Storage & Retention -->
+            <div class="soc-panel">
+              <div class="panel-header"><h3>Storage & Retention Policy</h3></div>
+              <div class="panel-body">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Incident Retention Period (days)</label>
+                    <input type="number" id="cfgRetentionDays" class="soc-input" value="7" min="1" max="90">
+                  </div>
+                  <div class="form-group">
+                    <label>Storage Quota Limit (MB)</label>
+                    <input type="number" id="cfgStorageLimitMb" class="soc-input" value="2048" min="256" max="10240">
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Security & Password PIN -->
             <div class="soc-panel">
               <div class="panel-header"><h3>Security Credentials</h3></div>
@@ -900,7 +1040,18 @@ sudo tailscale up</pre>
       <div class="soc-modal-body">
         <div class="event-inspect-grid">
           <div class="inspect-img-box">
-            <img id="eventDetailImg" src="" alt="Incident Snapshot">
+            <div id="comparisonTabBar" class="stream-tab-pills" style="display: none; margin-bottom: 8px;">
+              <button id="btnCompInitial" class="stream-pill active">1️⃣ Initial Frame</button>
+              <button id="btnCompFinal" class="stream-pill">2️⃣ Peak Frame</button>
+              <button id="btnCompSideBySide" class="stream-pill">🔀 Compare Both</button>
+            </div>
+            <div id="singleImgContainer">
+              <img id="eventDetailImg" src="" alt="Incident Snapshot">
+            </div>
+            <div id="sideBySideContainer" style="display: none; gap: 8px;">
+              <div style="flex: 1;"><span class="badge badge-primary" style="margin-bottom: 4px; display: inline-block;">Initial Frame</span><img id="eventDetailInitialImg" style="width: 100%; border-radius: 4px; object-fit: contain;" src=""></div>
+              <div style="flex: 1;"><span class="badge badge-warning" style="margin-bottom: 4px; display: inline-block;">Peak Frame</span><img id="eventDetailFinalImg" style="width: 100%; border-radius: 4px; object-fit: contain;" src=""></div>
+            </div>
           </div>
           <div class="inspect-meta-box">
             <div class="meta-item"><span class="lbl">Category:</span> <span id="eventDetailCategory" class="badge">--</span></div>

@@ -106,7 +106,11 @@ def verify_pin_auth(request: Request) -> bool:
         return True
 
     client_ip = request.client.host if request.client else ""
-    token = request.headers.get("X-Dashboard-Token") or request.cookies.get("wheat_watch_session")
+    token = (
+        request.headers.get("X-Dashboard-Token")
+        or request.headers.get("X-Session-Token")
+        or request.cookies.get("wheat_watch_session")
+    )
 
     if token:
         session = session_manager.validate_session(token, client_ip)
@@ -149,6 +153,7 @@ class CameraTestRequest(BaseModel):
 class ImageControlsRequest(BaseModel):
     resolution: Optional[str] = None
     quality: Optional[int] = None
+    exposure: Optional[int] = None
     exposure_compensation: Optional[int] = None
     gamma: Optional[float] = None
     brightness: Optional[int] = None
@@ -175,6 +180,7 @@ class FlashlightModeRequest(BaseModel):
 
 class SurveillanceToggleRequest(BaseModel):
     active: Optional[bool] = None
+    enabled: Optional[bool] = None
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -189,6 +195,9 @@ class ConfigUpdateRequest(BaseModel):
     storage: Optional[Dict[str, Any]] = None
     flashlight: Optional[Dict[str, Any]] = None
     audio_detection: Optional[Dict[str, Any]] = None
+
+    class Config:
+        extra = "allow"
 
 
 # --- API Endpoints ---
@@ -299,6 +308,7 @@ async def verify_pin(req: PINVerifyRequest, request: Request, response: Response
         return {
             "success": True,
             "token": token,
+            "session_id": token,
             "csrf_token": csrf_token,
             "message": "PIN verified successfully.",
         }
@@ -394,6 +404,9 @@ async def update_camera_controls(req: ImageControlsRequest, auth: bool = Depends
     updates = req.dict(exclude_unset=True)
     if not updates:
         return {"success": True, "message": "No controls provided."}
+
+    if "exposure" in updates and "exposure_compensation" not in updates:
+        updates["exposure_compensation"] = updates["exposure"]
 
     security_logger.info(f"[SECURITY AUDIT] Camera controls updated: {list(updates.keys())}")
     # Delegate to CameraWorker's safe reconfiguration engine off the main event loop
@@ -544,7 +557,12 @@ async def set_night_mode_endpoint(req: NightModeRequest, auth: bool = Depends(ve
 @app.post("/api/surveillance/toggle")
 async def toggle_surveillance_endpoint(req: Optional[SurveillanceToggleRequest] = None, auth: bool = Depends(verify_pin_auth)):
     """Toggle field surveillance monitoring ON or OFF."""
-    target_active = not pipeline.is_monitoring if (req is None or req.active is None) else req.active
+    target_active = None
+    if req is not None:
+        target_active = req.active if req.active is not None else req.enabled
+    if target_active is None:
+        target_active = not pipeline.is_monitoring
+
     if target_active:
         res = pipeline.start_monitoring()
     else:
@@ -655,8 +673,11 @@ async def get_config():
 
 @app.post("/api/config")
 async def update_config(updates: ConfigUpdateRequest, auth: bool = Depends(verify_pin_auth)):
-    """Update settings."""
+    """Update settings (supports both nested config dicts and flat form fields)."""
+    raw_dict = updates.dict(exclude_unset=True)
     upd_dict = {}
+
+    # 1. Process structured sections
     if updates.camera:
         upd_dict["camera"] = updates.camera
         camera_worker.request_reconnect()
@@ -683,16 +704,52 @@ async def update_config(updates: ConfigUpdateRequest, auth: bool = Depends(verif
     if updates.audio_detection:
         upd_dict["audio_detection"] = updates.audio_detection
     if updates.server:
-        # Only update PIN if provided and non-empty
         server_upd = dict(updates.server)
         if server_upd.get("dashboard_pin") == "****":
             server_upd.pop("dashboard_pin")
         upd_dict["server"] = server_upd
 
+    # 2. Process flat form field compatibility
+    cam_flat = {}
+    for k in ("phone_ip", "phone_port", "video_endpoint", "snapshot_endpoint", "audio_endpoint"):
+        if k in raw_dict:
+            cam_flat[k] = raw_dict[k]
+    if cam_flat:
+        upd_dict.setdefault("camera", {}).update(cam_flat)
+        camera_worker.request_reconnect()
+
+    pipe_flat = {}
+    for k in ("motion_fps", "ai_fps", "motion_threshold", "min_confidence", "auto_throttle"):
+        if k in raw_dict:
+            pipe_flat[k] = raw_dict[k]
+    if pipe_flat:
+        upd_dict.setdefault("pipeline", {}).update(pipe_flat)
+
+    alarm_flat = {}
+    if "sound_alarm_enabled" in raw_dict:
+        alarm_flat["sound_enabled"] = bool(raw_dict["sound_alarm_enabled"])
+    elif "sound_enabled" in raw_dict:
+        alarm_flat["sound_enabled"] = bool(raw_dict["sound_enabled"])
+    cd_flat = {}
+    for k, target in (("cooldown_person", "person"), ("cooldown_animal", "animal"), ("cooldown_motion", "motion")):
+        if k in raw_dict:
+            cd_flat[target] = int(raw_dict[k])
+    if cd_flat:
+        alarm_flat["cooldowns"] = cd_flat
+    if alarm_flat:
+        upd_dict.setdefault("alarm", {}).update(alarm_flat)
+
+    if "dashboard_pin" in raw_dict and raw_dict["dashboard_pin"] and raw_dict["dashboard_pin"] != "****":
+        from wheat_watch.security import hash_pin
+        h, s = hash_pin(str(raw_dict["dashboard_pin"]))
+        upd_dict.setdefault("server", {})["dashboard_pin_hash"] = h
+        upd_dict.setdefault("server", {})["dashboard_pin_salt"] = s
+        upd_dict.setdefault("server", {})["dashboard_pin"] = "****"
+
     app_config.update(upd_dict)
-    if updates.push:
+    if "push" in upd_dict:
         await broadcaster.broadcast("push_config", app_config.push)
-    return {"success": True, "message": "Settings updated successfully."}
+    return {"success": True, "message": "Settings updated and persisted successfully."}
 
 
 # --- Server-Sent Events (SSE) & Push Notification Endpoints ---

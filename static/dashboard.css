@@ -2037,3 +2037,25 @@ a:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* Side-by-Side Incident Forensic Comparison */
+#sideBySideContainer {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+#sideBySideContainer img {
+  width: 100%;
+  max-height: 340px;
+  object-fit: contain;
+  background-color: #000000;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.comparison-tab-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}

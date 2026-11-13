@@ -30,7 +30,7 @@ def log_test(title: str):
     print(f"========================================================")
 
 def run_tests():
-    client = httpx.Client(base_url=BASE_URL, timeout=10.0)
+    client = httpx.Client(base_url=BASE_URL, headers=PIN_HEADER, timeout=10.0)
 
     # -------------------------------------------------------------------------
     log_test("1. VERIFY RECORDING POLICY: ZERO CONTINUOUS VIDEO PERSISTENCE")

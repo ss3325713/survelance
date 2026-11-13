@@ -83,7 +83,9 @@ class FlashlightController:
     def set_mode(self, mode: str) -> Dict[str, Any]:
         """Switch between AUTO, MANUAL (forced ON), and OFF."""
         mode = mode.lower()
-        if mode not in ("auto", "manual", "off"):
+        if mode == "on":
+            mode = "manual"
+        elif mode not in ("auto", "manual", "off"):
             mode = "auto"
 
         with self._lock:
