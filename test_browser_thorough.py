@@ -178,10 +178,14 @@ async def run_browser_tests():
 
                     const modalOpenBefore = modal && modal.classList.contains('open');
                     const input = document.getElementById('pinInput');
-                    const submitBtn = document.querySelector('#pinForm button[type="submit"]');
-                    if (input && submitBtn) {
+                    const form = document.getElementById('pinForm');
+                    if (input && form) {
                         input.value = '1234';
-                        submitBtn.click();
+                        if (typeof form.requestSubmit === 'function') {
+                            form.requestSubmit();
+                        } else {
+                            form.dispatchEvent(new Event('submit', { cancelable: true }));
+                        }
                         await new Promise(r => setTimeout(r, 1200));
                         return {
                             modalOpenBefore,

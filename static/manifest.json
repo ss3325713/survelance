@@ -1,0 +1,19 @@
+{
+  "name": "PySURVEILLANCE Security Console",
+  "short_name": "PySURVEILLANCE",
+  "description": "SOC-grade intelligent surveillance and monitoring console",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "64x64 128x128 256x256 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

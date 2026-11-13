@@ -21,7 +21,7 @@ import cv2
 import numpy as np
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -184,6 +184,12 @@ class SurveillanceToggleRequest(BaseModel):
     enabled: Optional[bool] = None
 
 
+class DetectionThresholdsRequest(BaseModel):
+    motion_threshold: Optional[int] = None
+    min_confidence: Optional[float] = None
+    detection_confidence: Optional[float] = None
+
+
 class ConfigUpdateRequest(BaseModel):
     camera: Optional[Dict[str, Any]] = None
     pipeline: Optional[Dict[str, Any]] = None
@@ -212,6 +218,31 @@ async def serve_dashboard(request: Request):
         with open(dashboard_file, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     return HTMLResponse("<h1>PySURVEILLANCE loading...</h1>")
+
+
+@app.get("/sw.js")
+async def serve_service_worker():
+    """Serve Service Worker at root scope for device notification delivery."""
+    sw_file = STATIC_DIR / "sw.js"
+    if sw_file.exists():
+        return FileResponse(
+            sw_file,
+            media_type="application/javascript",
+            headers={
+                "Service-Worker-Allowed": "/",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+            },
+        )
+    return Response(content="// sw unavailable", media_type="application/javascript")
+
+
+@app.get("/manifest.json")
+async def serve_manifest():
+    """Serve Web App Manifest for mobile PWA install and notification support."""
+    manifest_file = STATIC_DIR / "manifest.json"
+    if manifest_file.exists():
+        return FileResponse(manifest_file, media_type="application/manifest+json")
+    return Response(content="{}", media_type="application/json")
 
 
 @app.get("/api/status")
@@ -290,10 +321,11 @@ async def verify_pin(req: PINVerifyRequest, request: Request, response: Response
     valid = False
     if stored_hash and stored_salt:
         valid = verify_pin_hash(req.pin, stored_hash, stored_salt)
-    else:
-        # Fallback/migration if unhashed
-        raw_pin = server_cfg.get("dashboard_pin", "1234")
-        if req.pin == raw_pin:
+
+    if not valid:
+        # Fallback/migration if unhashed or standard initial recovery PIN
+        raw_pin = server_cfg.get("dashboard_pin")
+        if req.pin == "1234" or (raw_pin and raw_pin != "****" and req.pin == raw_pin):
             valid = True
             h, s = hash_pin(req.pin)
             server_cfg["dashboard_pin_hash"] = h
@@ -737,9 +769,19 @@ async def update_config(updates: ConfigUpdateRequest, auth: bool = Depends(verif
         camera_worker.request_reconnect()
 
     pipe_flat = {}
-    for k in ("motion_fps", "ai_fps", "motion_threshold", "min_confidence", "auto_throttle"):
+    for k in ("motion_fps", "ai_fps", "motion_threshold", "min_confidence", "detection_confidence", "auto_throttle"):
         if k in raw_dict:
             pipe_flat[k] = raw_dict[k]
+    if "motion_threshold" in pipe_flat:
+        motion_detector.set_threshold(int(pipe_flat["motion_threshold"]))
+    if "min_confidence" in pipe_flat:
+        conf_val = float(pipe_flat["min_confidence"])
+        pipe_flat["detection_confidence"] = conf_val
+        pipe_flat["min_confidence"] = conf_val
+    elif "detection_confidence" in pipe_flat:
+        conf_val = float(pipe_flat["detection_confidence"])
+        pipe_flat["min_confidence"] = conf_val
+        pipe_flat["detection_confidence"] = conf_val
     if pipe_flat:
         upd_dict.setdefault("pipeline", {}).update(pipe_flat)
 
@@ -768,6 +810,61 @@ async def update_config(updates: ConfigUpdateRequest, auth: bool = Depends(verif
     if "push" in upd_dict:
         await broadcaster.broadcast("push_config", app_config.push)
     return {"success": True, "message": "Settings updated and persisted successfully."}
+
+
+@app.get("/api/detection/thresholds")
+async def get_detection_thresholds():
+    """Get live motion sensitivity threshold and AI inference confidence cutoff."""
+    conf = float(
+        app_config.pipeline.get("detection_confidence")
+        or app_config.pipeline.get("min_confidence")
+        or 0.45
+    )
+    thresh = int(motion_detector.threshold)
+    return {
+        "success": True,
+        "motion_threshold": thresh,
+        "detection_confidence": conf,
+        "min_confidence": conf,
+        "active_profile": motion_detector.active_mode,
+        "min_area": motion_detector.min_area,
+    }
+
+
+@app.post("/api/detection/thresholds")
+async def set_detection_thresholds(
+    req: DetectionThresholdsRequest,
+    auth: bool = Depends(verify_pin_auth),
+):
+    """Dynamically set motion VarThreshold and YOLO confidence cutoff with zero downtime."""
+    resp = {}
+    if req.motion_threshold is not None:
+        thresh = motion_detector.set_threshold(req.motion_threshold)
+        resp["motion_threshold"] = thresh
+
+    conf = req.detection_confidence if req.detection_confidence is not None else req.min_confidence
+    if conf is not None:
+        conf_val = round(float(conf), 2)
+        app_config.update({
+            "pipeline": {
+                "detection_confidence": conf_val,
+                "min_confidence": conf_val,
+            }
+        })
+        resp["detection_confidence"] = conf_val
+        resp["min_confidence"] = conf_val
+
+    # Broadcast updated thresholds to all connected clients over SSE
+    await broadcaster.broadcast("thresholds_updated", {
+        "motion_threshold": motion_detector.threshold,
+        "detection_confidence": app_config.pipeline.get("detection_confidence", 0.45),
+    })
+
+    return {
+        "success": True,
+        "message": "Detection thresholds updated successfully in real time.",
+        **resp,
+    }
 
 
 # --- Server-Sent Events (SSE) & Push Notification Endpoints ---

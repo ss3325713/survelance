@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PySURVEILLANCE — Security Operations Center</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -607,13 +608,13 @@
               <div class="panel-body">
                 <div id="notifPermissionBanner" class="notif-permission-banner mb-3" style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-medium); border-radius: var(--radius-sm); padding: 12px 14px;">
                   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                    <strong style="font-size: 0.88rem; color: #ffffff;">Desktop Notification Status</strong>
+                    <strong style="font-size: 0.88rem; color: #ffffff;">Device & OS Notification Center</strong>
                     <span id="notifPermissionStatusBadge" class="badge">Checking...</span>
                   </div>
                   <p class="text-sub" style="font-size: 0.78rem; margin-bottom: 8px;">
-                    Receive instant OS popups and audible sound chimes even when PySURVEILLANCE is in the background or minimized.
+                    Receive instant alerts in your device's notification drawer (Android) or OS notification center (Desktop) with audio chimes.
                   </p>
-                  <button id="notifReqPermBtn" class="btn btn-primary btn-sm">📲 Enable Desktop Notifications</button>
+                  <button id="notifReqPermBtn" class="btn btn-primary btn-sm">📲 Enable Device Notifications</button>
                 </div>
 
                 <div class="form-checkbox">

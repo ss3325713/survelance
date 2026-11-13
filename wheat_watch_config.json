@@ -17,34 +17,33 @@
     "host": "0.0.0.0",
     "port": 8000,
     "dashboard_pin": "****",
-    "dashboard_pin_hash": "332c18391f45bddd13dce01c2c3cc495f6b3909ed1bf5747d73a89417c9875e7",
-    "dashboard_pin_salt": "4df8d1525a685686ef4bac8de8b74d1b",
     "pin_required": true,
-    "session_secret": "c0eb9decfb1c81ae8008f769a65ba8c171dfe8da16e63da7346d7abaa877cd9e",
-    "restrict_local_network": true
+    "restrict_local_network": true,
+    "dashboard_pin_hash": "d75a9c3bfc2fdb02484d576949218ed2b744d00d26295b7bb858523da6e0f5a9",
+    "dashboard_pin_salt": "5bc6c31425c8f87cb2081641572c18b0"
   },
   "pipeline": {
     "target_width": 1280,
     "target_height": 720,
     "motion_fps": 8.0,
-    "motion_threshold": 13,
+    "motion_threshold": 35,
     "min_motion_area": 250,
     "max_motion_percent": 22.0,
     "require_motion_overlap": true,
     "ai_fps": 1.5,
-    "detection_confidence": 0.45,
+    "detection_confidence": 0.5,
     "auto_throttle_cpu": true,
     "cpu_throttle_threshold": 85.0,
     "monkey_model_path": "models/monkey_classifier.onnx",
-    "min_confidence": 0.3
+    "min_confidence": 0.5
   },
   "image_controls": {
     "resolution": "1280x720",
-    "quality": 95,
+    "quality": 92,
     "exposure_compensation": -2,
-    "gamma": 0.75,
-    "brightness": 5,
-    "contrast": 1.1,
+    "gamma": 1.6,
+    "brightness": -15,
+    "contrast": 1.15,
     "auto_hdr": false,
     "white_balance": "auto",
     "torch": false,
@@ -95,7 +94,7 @@
     "auto_threshold": 45.0,
     "hysteresis": 8.0,
     "day": {
-      "motion_threshold": 25,
+      "motion_threshold": 35,
       "min_motion_area": 250,
       "max_motion_percent": 22.0,
       "light_change_threshold": 7.5,
@@ -126,7 +125,7 @@
     "max_storage_mb": 2048
   },
   "flashlight": {
-    "mode": "auto",
+    "mode": "off",
     "lux_threshold": 45.0,
     "min_on_time_sec": 10.0,
     "max_on_time_sec": 120.0,

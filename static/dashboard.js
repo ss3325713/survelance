@@ -28,6 +28,7 @@
     incidentViewMode: 'timeline', // 'timeline' | 'gallery'
     lastStatus: null,
     isSurveillanceArmed: true,
+    pendingAction: null,
     cameraSettings: {
       quality: 95,
       exposure: -2,
@@ -410,7 +411,33 @@
     }
   }
 
-  function dispatchBrowserNotification(type, data) {
+  // Register Service Worker for Native OS / Android Notification Center
+  let swRegistration = null;
+  async function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return null;
+    try {
+      swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      console.info('PySURVEILLANCE ServiceWorker registered:', swRegistration.scope);
+      return swRegistration;
+    } catch (err) {
+      console.warn('ServiceWorker registration error:', err);
+      return null;
+    }
+  }
+
+  // Handle messages posted from Service Worker notification click events
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'NOTIFICATION_NAVIGATE') {
+        if (event.data.view) navigateToView(event.data.view);
+        if (event.data.eventId && typeof window.PySurveillance?.inspectEvent === 'function') {
+          window.PySurveillance.inspectEvent(event.data.eventId);
+        }
+      }
+    });
+  }
+
+  async function dispatchBrowserNotification(type, data) {
     if (!data) return;
     const cat = data.category || (type === 'alarm' ? 'Host Alarm' : 'Motion');
     const label = data.label || cat;
@@ -421,26 +448,51 @@
     // 1. Play audible Web Audio chime in browser
     playBrowserAlertChime(cat);
 
-    // 2. Trigger native OS Desktop Notification if permission granted
+    // 2. Trigger native OS / Device System Notification Center
     if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        const n = new Notification(title, {
-          body: body,
-          icon: '/static/favicon.svg',
-          badge: '/static/favicon.svg',
-          tag: `pysurv-${data.id || Date.now()}`,
-          renotify: true
-        });
-        n.onclick = () => {
-          window.focus();
-          navigateToView('incidents');
-          if (data.id && typeof window.PySurveillance?.inspectEvent === 'function') {
-            window.PySurveillance.inspectEvent(data.id);
+      const notifOptions = {
+        body: body,
+        icon: '/static/favicon.svg',
+        badge: '/static/favicon.svg',
+        tag: `pysurv-${data.id || Date.now()}`,
+        renotify: true,
+        vibrate: [200, 100, 200, 100, 200],
+        data: {
+          url: '/#incidents',
+          id: data.id || null
+        }
+      };
+
+      let showedViaSW = false;
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = swRegistration || (await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('SW ready timeout')), 1000))
+          ]));
+          if (reg && typeof reg.showNotification === 'function') {
+            await reg.showNotification(title, notifOptions);
+            showedViaSW = true;
           }
-          n.close();
-        };
-      } catch (err) {
-        console.warn('Native desktop notification dispatch error:', err);
+        } catch (swErr) {
+          console.warn('ServiceWorker showNotification error/timeout, falling back to desktop Notification API:', swErr);
+        }
+      }
+
+      if (!showedViaSW) {
+        try {
+          const n = new Notification(title, notifOptions);
+          n.onclick = () => {
+            window.focus();
+            navigateToView('incidents');
+            if (data.id && typeof window.PySurveillance?.inspectEvent === 'function') {
+              window.PySurveillance.inspectEvent(data.id);
+            }
+            n.close();
+          };
+        } catch (err) {
+          console.warn('Native notification fallback error:', err);
+        }
       }
     }
 
@@ -894,6 +946,9 @@
 
     // Detection Center Telemetry
     if (night.threshold && DOM.detMotionThresh) DOM.detMotionThresh.textContent = night.threshold;
+    if (night.confidence && DOM.detConfidenceDisplay) {
+      DOM.detConfidenceDisplay.textContent = `${Math.round(night.confidence * 100)}%`;
+    }
     if (night.min_area && DOM.detMinArea) DOM.detMinArea.textContent = `${night.min_area} px²`;
     if (night.active_mode && DOM.detActiveProfile) DOM.detActiveProfile.textContent = night.active_mode.toUpperCase();
     if (night.measured_brightness && DOM.detMeasuredLux) DOM.detMeasuredLux.textContent = `${night.measured_brightness.toFixed(1)} lux`;
@@ -1633,6 +1688,7 @@
     if (DOM.detThresholdSlider) {
       DOM.detThresholdSlider.addEventListener('input', (e) => {
         if (DOM.detThresholdVal) DOM.detThresholdVal.textContent = e.target.value;
+        if (DOM.detMotionThresh) DOM.detMotionThresh.textContent = e.target.value;
       });
     }
     if (DOM.detConfidenceSlider) {
@@ -1642,24 +1698,53 @@
         if (DOM.detConfidenceDisplay) DOM.detConfidenceDisplay.textContent = pct;
       });
     }
-    if (DOM.detSaveSettingsBtn) {
-      DOM.detSaveSettingsBtn.addEventListener('click', async () => {
-        const thresh = parseInt(DOM.detThresholdSlider.value);
-        const conf = parseFloat(DOM.detConfidenceSlider.value);
-        const res = await apiFetch('/api/config', {
+
+    async function applyDetectionThresholds() {
+      if (!DOM.detThresholdSlider || !DOM.detConfidenceSlider) return;
+      const thresh = parseInt(DOM.detThresholdSlider.value, 10);
+      const conf = parseFloat(DOM.detConfidenceSlider.value);
+      const confPct = `${Math.round(conf * 100)}%`;
+
+      if (DOM.detSaveSettingsBtn) {
+        DOM.detSaveSettingsBtn.disabled = true;
+        DOM.detSaveSettingsBtn.textContent = '⏳ Applying...';
+      }
+
+      try {
+        const res = await apiFetch('/api/detection/thresholds', {
           method: 'POST',
           body: {
             motion_threshold: thresh,
-            min_confidence: conf
+            min_confidence: conf,
+            detection_confidence: conf,
           }
         });
+
         if (res.ok) {
-          showToast('Detection thresholds updated successfully', 'success');
+          if (DOM.detMotionThresh) DOM.detMotionThresh.textContent = thresh;
+          if (DOM.detConfidenceDisplay) DOM.detConfidenceDisplay.textContent = confPct;
+          if (DOM.cfgMotionThresh) DOM.cfgMotionThresh.value = thresh;
+          if (DOM.cfgConfidence) DOM.cfgConfidence.value = conf;
+          showToast(`Applied: VarThreshold ${thresh}, AI Confidence ${confPct}`, 'success');
           pollStatus();
         } else if (res.status === 401) {
+          state.pendingAction = applyDetectionThresholds;
           openPinModal();
+        } else {
+          showToast('Failed to apply detection thresholds', 'danger');
         }
-      });
+      } catch (err) {
+        showToast('Error applying detection thresholds', 'danger');
+      } finally {
+        if (DOM.detSaveSettingsBtn) {
+          DOM.detSaveSettingsBtn.disabled = false;
+          DOM.detSaveSettingsBtn.textContent = '💾 Apply Detection Thresholds';
+        }
+      }
+    }
+
+    if (DOM.detSaveSettingsBtn) {
+      DOM.detSaveSettingsBtn.addEventListener('click', applyDetectionThresholds);
     }
 
     // Incident search filter
@@ -1751,8 +1836,9 @@
     const perm = Notification.permission;
     if (DOM.notifPermissionStatusBadge) {
       if (perm === 'granted') {
-        DOM.notifPermissionStatusBadge.textContent = '✅ ACTIVE (GRANTED)';
+        DOM.notifPermissionStatusBadge.textContent = '✅ ACTIVE (DEVICE NOTIFICATIONS ENABLED)';
         DOM.notifPermissionStatusBadge.className = 'badge badge-success';
+        registerServiceWorker();
       } else if (perm === 'denied') {
         DOM.notifPermissionStatusBadge.textContent = '❌ BLOCKED IN BROWSER';
         DOM.notifPermissionStatusBadge.className = 'badge badge-danger';
@@ -1826,18 +1912,19 @@
     if (DOM.notifReqPermBtn) {
       DOM.notifReqPermBtn.addEventListener('click', async () => {
         if (!('Notification' in window)) {
-          showToast('This browser does not support desktop notifications', 'warning');
+          showToast('This device does not support push notifications', 'warning');
           return;
         }
         try {
           const perm = await Notification.requestPermission();
           checkNotificationPermission();
           if (perm === 'granted') {
-            showToast('Desktop notification permission granted! Testing alert...', 'success');
-            dispatchBrowserNotification('test', {
+            showToast('Device notifications enabled! Registering service worker...', 'success');
+            await registerServiceWorker();
+            await dispatchBrowserNotification('test', {
               id: 999999,
               category: 'Person',
-              label: 'Desktop Notifications Enabled Successfully',
+              label: 'Device System Notifications Enabled Successfully',
               confidence: 0.99
             });
           } else if (perm === 'denied') {
@@ -1853,9 +1940,9 @@
 
     if (DOM.notifTestPushBtn) {
       DOM.notifTestPushBtn.addEventListener('click', async () => {
-        // Immediate local dispatch for instant visual and audio verification
-        dispatchBrowserNotification('test', {
-          id: 999999,
+        // Immediate local dispatch for instant visual, audio, and device drawer push
+        await dispatchBrowserNotification('test', {
+          id: `test-${Date.now()}`,
           category: 'Person',
           label: 'Test Alert: Person Detected near Monitored Perimeter',
           confidence: 0.98
@@ -1865,7 +1952,7 @@
         try {
           const res = await apiFetch('/api/push/test', { method: 'POST' });
           if (res.ok) {
-            showToast('Test push notification dispatched!', 'success');
+            showToast('Test push notification dispatched to connected devices!', 'success');
           } else if (res.status === 401) {
             openPinModal();
           }
@@ -1977,16 +2064,37 @@
       if (DOM.cfgRetentionDays) DOM.cfgRetentionDays.value = storage.retention_days || 7;
       if (DOM.cfgStorageLimitMb) DOM.cfgStorageLimitMb.value = storage.max_storage_mb || 2048;
 
+      // Query live thresholds from detection subsystem
+      try {
+        const dRes = await apiFetch('/api/detection/thresholds');
+        if (dRes.ok) {
+          const dData = await dRes.json();
+          if (dData.motion_threshold !== undefined) {
+            pipe.motion_threshold = dData.motion_threshold;
+          }
+          if (dData.detection_confidence !== undefined) {
+            pipe.detection_confidence = dData.detection_confidence;
+            pipe.min_confidence = dData.detection_confidence;
+          }
+        }
+      } catch (e) {}
+
+      const activeThresh = pipe.motion_threshold || 25;
+      const activeConf = pipe.detection_confidence || pipe.min_confidence || 0.45;
+      const confPct = `${Math.round(activeConf * 100)}%`;
+
       if (DOM.detThresholdSlider) {
-        DOM.detThresholdSlider.value = pipe.motion_threshold || 25;
-        if (DOM.detThresholdVal) DOM.detThresholdVal.textContent = pipe.motion_threshold || 25;
+        DOM.detThresholdSlider.value = activeThresh;
+        if (DOM.detThresholdVal) DOM.detThresholdVal.textContent = activeThresh;
+        if (DOM.detMotionThresh) DOM.detMotionThresh.textContent = activeThresh;
       }
       if (DOM.detConfidenceSlider) {
-        DOM.detConfidenceSlider.value = pipe.min_confidence || 0.45;
-        const pct = `${Math.round((pipe.min_confidence || 0.45) * 100)}%`;
-        if (DOM.detConfidenceVal) DOM.detConfidenceVal.textContent = pct;
-        if (DOM.detConfidenceDisplay) DOM.detConfidenceDisplay.textContent = pct;
+        DOM.detConfidenceSlider.value = activeConf;
+        if (DOM.detConfidenceVal) DOM.detConfidenceVal.textContent = confPct;
+        if (DOM.detConfidenceDisplay) DOM.detConfidenceDisplay.textContent = confPct;
       }
+      if (DOM.cfgMotionThresh) DOM.cfgMotionThresh.value = activeThresh;
+      if (DOM.cfgConfidence) DOM.cfgConfidence.value = activeConf;
     } catch (err) {
       console.warn('Failed to load settings:', err);
     }
@@ -2112,6 +2220,15 @@
             updateAuthUI();
             closeModal(DOM.pinModal);
             showToast('PIN verified. Operations unlocked.', 'success');
+            if (typeof state.pendingAction === 'function') {
+              const pending = state.pendingAction;
+              state.pendingAction = null;
+              try {
+                await pending();
+              } catch (actErr) {
+                console.warn('Failed executing pending action after PIN verify:', actErr);
+              }
+            }
           } else {
             if (DOM.pinError) DOM.pinError.textContent = 'Invalid PIN code. Please try again.';
           }
@@ -2152,6 +2269,18 @@
       if (type === 'detection' || type === 'detection_update' || type === 'alarm' || type === 'test') {
         dispatchBrowserNotification(type, data);
         fetchEvents();
+      } else if (type === 'thresholds_updated') {
+        if (data.motion_threshold !== undefined) {
+          if (DOM.detThresholdSlider) DOM.detThresholdSlider.value = data.motion_threshold;
+          if (DOM.detThresholdVal) DOM.detThresholdVal.textContent = data.motion_threshold;
+          if (DOM.detMotionThresh) DOM.detMotionThresh.textContent = data.motion_threshold;
+        }
+        if (data.detection_confidence !== undefined) {
+          const pct = `${Math.round(data.detection_confidence * 100)}%`;
+          if (DOM.detConfidenceSlider) DOM.detConfidenceSlider.value = data.detection_confidence;
+          if (DOM.detConfidenceVal) DOM.detConfidenceVal.textContent = pct;
+          if (DOM.detConfidenceDisplay) DOM.detConfidenceDisplay.textContent = pct;
+        }
       } else if (type === 'event_completed') {
         fetchEvents();
       } else if (type === 'push_config') {
@@ -2171,7 +2300,7 @@
     };
 
     // Explicit listeners for SSE named event streams
-    ['detection', 'detection_update', 'event_completed', 'alarm', 'push_config', 'test'].forEach(evt => {
+    ['detection', 'detection_update', 'event_completed', 'alarm', 'push_config', 'test', 'thresholds_updated'].forEach(evt => {
       state.eventSource.addEventListener(evt, (e) => {
         try {
           const data = JSON.parse(e.data);
@@ -2345,6 +2474,8 @@
     fetchEvents();
     loadCameraControls();
     fetchPushStatus();
+    loadConfigSettings();
+    registerServiceWorker();
 
     // Timers
     state.statusPollTimer = setInterval(pollStatus, 1000);

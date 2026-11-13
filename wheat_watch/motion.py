@@ -65,6 +65,40 @@ class MotionDetector:
             self.max_motion_percent = profile.get("max_motion_percent", 22.0)
             self.light_change_threshold = profile.get("light_change_threshold", 7.5)
 
+        if hasattr(self, "subtractor") and self.subtractor is not None:
+            try:
+                self.subtractor.setVarThreshold(float(self.threshold))
+            except Exception as e:
+                logger.warning(f"Failed to update MOG2 varThreshold: {e}")
+
+    def set_threshold(self, threshold: int) -> int:
+        """Set motion sensitivity VarThreshold dynamically on the active background subtractor."""
+        val = int(threshold)
+        if val < 5:
+            val = 5
+        elif val > 150:
+            val = 150
+        self.threshold = val
+        if hasattr(self, "subtractor") and self.subtractor is not None:
+            try:
+                self.subtractor.setVarThreshold(float(val))
+            except Exception as e:
+                logger.warning(f"Failed to set MOG2 VarThreshold: {e}")
+
+        # Update active profile in night_mode and pipeline
+        night_cfg = dict(app_config.night_mode)
+        active_prof = dict(night_cfg.get(self.active_mode, {}))
+        active_prof["motion_threshold"] = val
+        night_cfg[self.active_mode] = active_prof
+        app_config.update({
+            "night_mode": night_cfg,
+            "pipeline": {
+                "motion_threshold": val
+            }
+        })
+        logger.info(f"Updated motion VarThreshold to: {val} (active profile: {self.active_mode})")
+        return self.threshold
+
     def set_night_mode(self, mode: str) -> Dict[str, Any]:
         """Manually set night mode to 'off', 'on', or 'auto'."""
         mode = mode.lower()
@@ -92,6 +126,11 @@ class MotionDetector:
 
     def get_night_status(self) -> Dict[str, Any]:
         """Return current night mode state and brightness telemetry."""
+        conf = float(
+            app_config.pipeline.get("detection_confidence")
+            or app_config.pipeline.get("min_confidence")
+            or 0.45
+        )
         return {
             "mode": self.mode,
             "active_mode": self.active_mode,
@@ -100,6 +139,8 @@ class MotionDetector:
             "threshold": self.threshold,
             "min_area": self.min_area,
             "light_change_threshold": self.light_change_threshold,
+            "confidence": conf,
+            "min_confidence": conf,
         }
 
     def reset(self) -> None:

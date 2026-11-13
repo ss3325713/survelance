@@ -113,7 +113,11 @@ class ObjectDetector:
             return []
 
         if confidence_threshold is None:
-            confidence_threshold = app_config.pipeline.get("detection_confidence", 0.40)
+            confidence_threshold = float(
+                app_config.pipeline.get("detection_confidence")
+                or app_config.pipeline.get("min_confidence")
+                or 0.45
+            )
 
         h, w = frame.shape[:2]
 

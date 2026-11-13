@@ -245,6 +245,11 @@ class Config:
                 if "dashboard_pin_hash" in self._data.get("server", {}):
                     updates["server"].setdefault("dashboard_pin_hash", self._data["server"]["dashboard_pin_hash"])
                     updates["server"].setdefault("dashboard_pin_salt", self._data["server"]["dashboard_pin_salt"])
+                else:
+                    from wheat_watch.security import hash_pin
+                    h, s = hash_pin("1234")
+                    updates["server"]["dashboard_pin_hash"] = h
+                    updates["server"]["dashboard_pin_salt"] = s
                 updates["server"]["dashboard_pin"] = "****"
         self._data = self._merge_defaults(self._data, updates)
         self.save()
