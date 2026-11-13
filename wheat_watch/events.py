@@ -350,6 +350,18 @@ class EventStore:
                 details = json.loads(r["details"]) if r["details"] else {}
             except Exception:
                 details = {}
+
+            img_p = r["image_path"] if "image_path" in r.keys() else ""
+            init_p = img_p
+            final_p = img_p
+            if details and "images" in details and isinstance(details["images"], list):
+                for im in details["images"]:
+                    if isinstance(im, dict):
+                        if im.get("tag") == "initial":
+                            init_p = im.get("path", init_p)
+                        elif im.get("tag") == "final":
+                            final_p = im.get("path", final_p)
+
             events.append(
                 {
                     "id": r["id"],
@@ -358,7 +370,10 @@ class EventStore:
                     "confidence": r["confidence"],
                     "label": r["label"],
                     "details": details,
-                    "image_path": r["image_path"],
+                    "image_path": img_p,
+                    "snapshot_path": img_p,
+                    "initial_snapshot_path": init_p,
+                    "final_snapshot_path": final_p,
                     "status": r["status"] if "status" in r.keys() else "completed",
                     "end_timestamp": r["end_timestamp"] if "end_timestamp" in r.keys() else r["timestamp"],
                     "acknowledged": bool(r["acknowledged"]),
@@ -377,6 +392,18 @@ class EventStore:
                 details = json.loads(r["details"]) if r["details"] else {}
             except Exception:
                 details = {}
+
+            img_p = r["image_path"] if "image_path" in r.keys() else ""
+            init_p = img_p
+            final_p = img_p
+            if details and "images" in details and isinstance(details["images"], list):
+                for im in details["images"]:
+                    if isinstance(im, dict):
+                        if im.get("tag") == "initial":
+                            init_p = im.get("path", init_p)
+                        elif im.get("tag") == "final":
+                            final_p = im.get("path", final_p)
+
             return {
                 "id": r["id"],
                 "timestamp": r["timestamp"],
@@ -384,7 +411,10 @@ class EventStore:
                 "confidence": r["confidence"],
                 "label": r["label"],
                 "details": details,
-                "image_path": r["image_path"],
+                "image_path": img_p,
+                "snapshot_path": img_p,
+                "initial_snapshot_path": init_p,
+                "final_snapshot_path": final_p,
                 "status": r["status"] if "status" in r.keys() else "completed",
                 "end_timestamp": r["end_timestamp"] if "end_timestamp" in r.keys() else r["timestamp"],
                 "acknowledged": bool(r["acknowledged"]),

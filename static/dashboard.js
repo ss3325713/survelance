@@ -857,6 +857,35 @@
     if (DOM.countMotion) DOM.countMotion.textContent = counts.Motion;
   }
 
+  function getEventImageSrc(ev, tag = 'initial') {
+    if (!ev) return '/static/favicon.svg';
+    let p = '';
+    if (ev.details && Array.isArray(ev.details.images) && ev.details.images.length > 0) {
+      const imgs = ev.details.images;
+      if (tag === 'final') {
+        const finalObj = imgs.slice().reverse().find(i => i.tag === 'final') || imgs[imgs.length - 1];
+        if (finalObj && finalObj.path) p = finalObj.path;
+      } else {
+        const initObj = imgs.find(i => i.tag === 'initial') || imgs[0];
+        if (initObj && initObj.path) p = initObj.path;
+      }
+    }
+    if (!p) {
+      if (tag === 'final') {
+        p = ev.final_snapshot_path || ev.snapshot_path || ev.image_path || '';
+      } else {
+        p = ev.initial_snapshot_path || ev.snapshot_path || ev.image_path || '';
+      }
+    }
+    if (!p) return '/static/favicon.svg';
+    if (p.startsWith('http://') || p.startsWith('https://')) return p;
+    p = p.replace(/^\/+/, '');
+    if (p.startsWith('storage/')) {
+      return `/${p}`;
+    }
+    return `/storage/events/${p.replace(/^events\//, '')}`;
+  }
+
   function renderEventsList() {
     if (!DOM.eventsList) return;
     DOM.eventsList.className = `incident-stream ${state.incidentViewMode}-layout`;
@@ -877,18 +906,21 @@
     }
 
     DOM.eventsList.innerHTML = filtered.map(ev => {
-      const imgPath = ev.snapshot_path || ev.initial_snapshot_path || ev.final_snapshot_path || '/static/favicon.svg';
-      const imgSrc = imgPath.startsWith('/') ? imgPath : `/api/storage/${imgPath.replace(/^storage\//, '')}`;
+      const imgSrc = getEventImageSrc(ev, 'initial');
       const conf = ev.confidence ? `${(ev.confidence * 100).toFixed(0)}%` : '--%';
       const cat = ev.category || 'Motion';
       const timeStr = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '--:--:--';
       const dateStr = ev.timestamp ? new Date(ev.timestamp).toLocaleDateString() : '';
+      const hasMultiFrame = Boolean(
+        (ev.details && Array.isArray(ev.details.images) && ev.details.images.length > 1) ||
+        (ev.initial_snapshot_path && ev.final_snapshot_path && ev.initial_snapshot_path !== ev.final_snapshot_path)
+      );
 
       return `
         <div class="incident-card" data-event-id="${ev.id}">
           <div class="incident-thumb-box" onclick="window.PySurveillance.inspectEvent(${ev.id})">
             <img src="${imgSrc}" alt="Incident ${ev.id}" loading="lazy" onerror="this.src='/static/favicon.svg'">
-            ${ev.initial_snapshot_path && ev.final_snapshot_path ? '<span class="incident-tag-pill">2-FRAME COMPARE</span>' : ''}
+            ${hasMultiFrame ? '<span class="incident-tag-pill">2-FRAME COMPARE</span>' : ''}
           </div>
           <div class="incident-info-box">
             <div class="incident-title-row">
@@ -920,9 +952,7 @@
   function updateLatestOverviewIncident() {
     if (state.events.length === 0) return;
     const latest = state.events[0];
-
-    const imgPath = latest.snapshot_path || latest.final_snapshot_path || latest.initial_snapshot_path || '/static/favicon.svg';
-    const imgSrc = imgPath.startsWith('/') ? imgPath : `/api/storage/${imgPath.replace(/^storage\//, '')}`;
+    const imgSrc = getEventImageSrc(latest, 'initial');
 
     if (DOM.latestEventImg) DOM.latestEventImg.src = imgSrc;
     if (DOM.latestEventLabelText) DOM.latestEventLabelText.textContent = latest.label || latest.category || 'Motion';
@@ -953,12 +983,9 @@
 
       if (DOM.eventDetailTitle) DOM.eventDetailTitle.textContent = `Incident #${ev.id} — ${ev.category || 'Event'}`;
 
-      const initialPath = ev.initial_snapshot_path || '';
-      const finalPath = ev.final_snapshot_path || ev.snapshot_path || '';
-      const initialSrc = initialPath ? (initialPath.startsWith('/') ? initialPath : `/api/storage/${initialPath.replace(/^storage\//, '')}`) : '';
-      const finalSrc = finalPath ? (finalPath.startsWith('/') ? finalPath : `/api/storage/${finalPath.replace(/^storage\//, '')}`) : '';
-
-      const hasBoth = Boolean(initialPath && finalPath);
+      const initialSrc = getEventImageSrc(ev, 'initial');
+      const finalSrc = getEventImageSrc(ev, 'final');
+      const hasBoth = Boolean(initialSrc && finalSrc && initialSrc !== finalSrc);
 
       if (DOM.comparisonTabBar) {
         DOM.comparisonTabBar.style.display = hasBoth ? 'flex' : 'none';
@@ -1006,8 +1033,7 @@
         DOM.btnCompSideBySide.classList.remove('active');
         DOM.singleImgContainer.style.display = 'block';
         DOM.sideBySideContainer.style.display = 'none';
-        const p = state.activeEventData.initial_snapshot_path || '';
-        DOM.eventDetailImg.src = p.startsWith('/') ? p : `/api/storage/${p.replace(/^storage\//, '')}`;
+        DOM.eventDetailImg.src = getEventImageSrc(state.activeEventData, 'initial');
       });
     }
     if (DOM.btnCompFinal) {
@@ -1018,17 +1044,19 @@
         DOM.btnCompSideBySide.classList.remove('active');
         DOM.singleImgContainer.style.display = 'block';
         DOM.sideBySideContainer.style.display = 'none';
-        const p = state.activeEventData.final_snapshot_path || state.activeEventData.snapshot_path || '';
-        DOM.eventDetailImg.src = p.startsWith('/') ? p : `/api/storage/${p.replace(/^storage\//, '')}`;
+        DOM.eventDetailImg.src = getEventImageSrc(state.activeEventData, 'final');
       });
     }
     if (DOM.btnCompSideBySide) {
       DOM.btnCompSideBySide.addEventListener('click', () => {
+        if (!state.activeEventData) return;
         DOM.btnCompSideBySide.classList.add('active');
         DOM.btnCompInitial.classList.remove('active');
         DOM.btnCompFinal.classList.remove('active');
         DOM.singleImgContainer.style.display = 'none';
         DOM.sideBySideContainer.style.display = 'flex';
+        DOM.eventDetailInitialImg.src = getEventImageSrc(state.activeEventData, 'initial');
+        DOM.eventDetailFinalImg.src = getEventImageSrc(state.activeEventData, 'final');
       });
     }
   }

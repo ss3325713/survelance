@@ -72,6 +72,7 @@ STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/storage", StaticFiles(directory="storage"), name="storage")
 if SOUNDS_DIR.exists():
     app.mount("/sounds", StaticFiles(directory=str(SOUNDS_DIR)), name="sounds")
 
@@ -634,10 +635,20 @@ async def get_stored_image(filename: str):
     """Serve recorded event image supporting both date subdirectories and legacy flat files."""
     events_root = STORAGE_DIR.resolve()
     
-    # 1. Direct path check
-    target_path = (STORAGE_DIR / filename).resolve()
+    clean_name = filename.lstrip("/")
+    if clean_name.startswith("storage/"):
+        clean_name = clean_name[len("storage/"):]
+    if clean_name.startswith("events/"):
+        clean_name = clean_name[len("events/"):]
     
-    # 2. If not found, check if filename is a basename in subdirectories
+    # 1. Cleaned path check
+    target_path = (STORAGE_DIR / clean_name).resolve()
+    
+    # 2. Raw path check
+    if not target_path.exists() or not target_path.is_file():
+        target_path = (STORAGE_DIR / filename).resolve()
+    
+    # 3. Basename search fallback
     if not target_path.exists() or not target_path.is_file():
         base = Path(filename).name
         matched = list(STORAGE_DIR.rglob(base))

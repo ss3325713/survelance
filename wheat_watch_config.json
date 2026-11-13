@@ -17,7 +17,10 @@
     "host": "0.0.0.0",
     "port": 8000,
     "dashboard_pin": "****",
+    "dashboard_pin_hash": "332c18391f45bddd13dce01c2c3cc495f6b3909ed1bf5747d73a89417c9875e7",
+    "dashboard_pin_salt": "4df8d1525a685686ef4bac8de8b74d1b",
     "pin_required": true,
+    "session_secret": "f1d02fc1b9b25d29db3255b957f52885881859c0a2a9b4310b1564172cc2eb1c",
     "restrict_local_network": true
   },
   "pipeline": {
