@@ -240,11 +240,18 @@ async def get_system_status():
         "night_mode": motion_detector.get_night_status(),
         "flashlight": flashlight_controller.get_status(),
         "microphone": microphone_detector.get_status(),
+        "phone_device": camera_worker.get_phone_device_telemetry(),
         "storage": storage_manager.get_storage_stats(),
         "today_events_count": event_store.get_today_count(),
         "monkey_model": detector.get_monkey_status(),
         "summary": event_store.get_summary_stats(),
     }
+
+
+@app.get("/api/camera/phone_details")
+async def get_camera_phone_details():
+    """Retrieve detailed hardware diagnostics, battery level, temperature and optics from Redmi 10."""
+    return camera_worker.get_phone_device_telemetry(max_cache_age=1.5)
 
 
 @app.get("/api/qr")

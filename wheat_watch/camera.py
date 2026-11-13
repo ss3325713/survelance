@@ -91,6 +91,10 @@ class CameraWorker:
         self._verified_online_event = threading.Event()
         self._resume_event.set()
 
+        # Cached phone device telemetry (battery, temperature, optics)
+        self._phone_telemetry_cache: Optional[Dict[str, Any]] = None
+        self._phone_telemetry_time: float = 0.0
+
     def request_reconnect(self) -> None:
         """Signal acquisition loop to cleanly re-establish stream connection."""
         with self._lock:
@@ -154,6 +158,84 @@ class CameraWorker:
         except Exception as e:
             logger.debug(f"Failed to query camera status.json: {e}")
         return None
+
+    def get_phone_device_telemetry(self, max_cache_age: float = 3.0) -> Dict[str, Any]:
+        """Fetch real-time phone diagnostics including battery, temperature, optics and sensor status."""
+        now = time.time()
+        if self._phone_telemetry_cache and (now - self._phone_telemetry_time < max_cache_age):
+            return self._phone_telemetry_cache
+
+        cam = app_config.camera
+        ip = cam.get("phone_ip", "192.168.31.211")
+        port = cam.get("phone_port", 8080)
+
+        curvals: Dict[str, Any] = {}
+        video_connections = 0
+        audio_connections = 0
+        try:
+            r = httpx.get(f"http://{ip}:{port}/status.json", timeout=1.8)
+            if r.status_code == 200:
+                data = r.json()
+                curvals = data.get("curvals", {})
+                video_connections = data.get("video_connections", 0)
+                audio_connections = data.get("audio_connections", 0)
+        except Exception:
+            pass
+
+        sensors: Dict[str, Any] = {}
+        try:
+            r_sen = httpx.get(f"http://{ip}:{port}/sensors.json", timeout=1.8)
+            if r_sen.status_code == 200:
+                sensors = r_sen.json()
+        except Exception:
+            pass
+
+        def extract_latest(sensor_obj: Any) -> Optional[float]:
+            if isinstance(sensor_obj, dict) and "data" in sensor_obj and sensor_obj["data"]:
+                latest = sensor_obj["data"][-1]
+                if len(latest) >= 2 and latest[1]:
+                    try:
+                        return float(latest[1][0])
+                    except (ValueError, TypeError, IndexError):
+                        pass
+            return None
+
+        battery_level = extract_latest(sensors.get("battery_level"))
+        battery_temp = extract_latest(sensors.get("battery_temp"))
+        battery_voltage = extract_latest(sensors.get("battery_voltage"))
+        ambient_temp = extract_latest(sensors.get("temp")) or extract_latest(sensors.get("ambient_temp"))
+        ambient_lux = extract_latest(sensors.get("light"))
+
+        sensors_enabled = bool(sensors and len(sensors) > 0)
+
+        res = {
+            "model": "Redmi 10 (IP Webcam)",
+            "phone_ip": ip,
+            "phone_port": port,
+            "is_online": self.state == self.STATE_ONLINE,
+            "video_connections": video_connections,
+            "audio_connections": audio_connections,
+            "battery_level": round(battery_level, 1) if battery_level is not None else None,
+            "battery_temp": round(battery_temp, 1) if battery_temp is not None else None,
+            "battery_voltage": round(battery_voltage, 2) if battery_voltage is not None else None,
+            "ambient_temp": round(ambient_temp, 1) if ambient_temp is not None else None,
+            "ambient_lux": round(ambient_lux, 1) if ambient_lux is not None else None,
+            "sensors_logging_enabled": sensors_enabled,
+            "sensor_help_hint": "Live sensors active." if sensors_enabled else "In IP Webcam on Redmi 10: Scroll down to Data logging ➔ enable 'Log sensors' to stream live battery % & temperature.",
+            "torch": curvals.get("torch", "off"),
+            "flashmode": curvals.get("flashmode", "off"),
+            "night_vision": curvals.get("night_vision", "off"),
+            "iso": curvals.get("iso", "auto"),
+            "aperture": curvals.get("aperture", "1.8"),
+            "focal_length": curvals.get("focal_length", "4.266"),
+            "exposure_ns": curvals.get("exposure_ns"),
+            "video_size": curvals.get("video_size", "1920x1080"),
+            "timestamp": now,
+        }
+
+        self._phone_telemetry_cache = res
+        self._phone_telemetry_time = now
+        return res
 
     def send_camera_command(self, cmd: str, val: Any) -> bool:
         """Send hardware control commands directly to Redmi 10 IP Webcam."""

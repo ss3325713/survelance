@@ -178,6 +178,13 @@
             <span id="micPillText">MIC: DISCONNECTED</span>
           </div>
 
+          <!-- Redmi 10 Hardware, Battery & Temperature -->
+          <div id="topbarPhonePill" class="soc-pill pill-subtle" title="Redmi 10 Phone Battery & Temperature">
+            <span id="topbarPhoneBatteryIcon">🔋</span>
+            <span id="topbarPhoneBatteryText">BATTERY: --</span>
+            <span id="topbarPhoneTempText" style="margin-left: 4px; color: #38bdf8; display: none;">🌡️ --°C</span>
+          </div>
+
           <div id="dbPill" class="soc-pill pill-info" title="SQLite Incident History Store">
             <span>💾 <strong id="dbStatusText">DB: HEALTHY</strong></span>
           </div>
@@ -249,6 +256,18 @@
                 <button id="overviewTorchAutoBtn" class="btn btn-outline btn-sm" style="flex: 1; font-size: 0.68rem; padding: 2px 4px;">⚡ Auto</button>
                 <button id="overviewTorchOnBtn" class="btn btn-outline btn-sm" style="flex: 1; font-size: 0.68rem; padding: 2px 4px;">💡 Force On</button>
                 <button id="overviewTorchOffBtn" class="btn btn-outline btn-sm" style="flex: 1; font-size: 0.68rem; padding: 2px 4px;">⚫ Off</button>
+              </div>
+            </div>
+
+            <div class="stat-card" id="overviewPhoneCard">
+              <div class="stat-card-header">
+                <span class="stat-label">REDMI 10 BATTERY & TEMP</span>
+                <span class="stat-badge badge-primary" id="overviewPhoneBadge">ONLINE</span>
+              </div>
+              <div class="stat-value" id="overviewPhoneBatteryVal">--%</div>
+              <div class="stat-meta" id="overviewPhoneTempMeta">Temp: --°C | Voltage: -- V</div>
+              <div class="stat-submeta text-sub mt-1" id="overviewPhoneSensorsStatus" style="font-size: 0.72rem;">
+                Sensors: Active
               </div>
             </div>
           </div>
@@ -420,6 +439,33 @@
                   <div class="network-quick-info mt-2">
                     <span>Phone IP: <code>192.168.31.211:8080</code></span>
                   </div>
+
+                  <!-- Redmi 10 Live Telemetry & Battery -->
+                  <div class="phone-telemetry-box mt-3" style="background: var(--bg-surface); padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); font-size: 0.78rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span class="text-sub">Device Model:</span>
+                      <strong id="livePhoneModel">Redmi 10 (IP Webcam)</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span class="text-sub">Battery Level:</span>
+                      <strong id="livePhoneBattery">--%</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span class="text-sub">Battery Temp:</span>
+                      <strong id="livePhoneTemp">--°C</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span class="text-sub">Battery Voltage:</span>
+                      <strong id="livePhoneVolt">-- V</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span class="text-sub">Sensor ISO / Aperture:</span>
+                      <span id="livePhoneOptics">ISO 100 • f/1.8</span>
+                    </div>
+                    <div id="livePhoneSensorHint" class="text-sub mt-1" style="font-size: 0.72rem; color: #94a3b8; border-top: 1px solid var(--border-subtle); padding-top: 4px;">
+                      Sensors: Querying...
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -559,6 +605,17 @@
                 <span id="notifSseStatusBadge" class="badge badge-success">SSE Connected</span>
               </div>
               <div class="panel-body">
+                <div id="notifPermissionBanner" class="notif-permission-banner mb-3" style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-medium); border-radius: var(--radius-sm); padding: 12px 14px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <strong style="font-size: 0.88rem; color: #ffffff;">Desktop Notification Status</strong>
+                    <span id="notifPermissionStatusBadge" class="badge">Checking...</span>
+                  </div>
+                  <p class="text-sub" style="font-size: 0.78rem; margin-bottom: 8px;">
+                    Receive instant OS popups and audible sound chimes even when PySURVEILLANCE is in the background or minimized.
+                  </p>
+                  <button id="notifReqPermBtn" class="btn btn-primary btn-sm">📲 Enable Desktop Notifications</button>
+                </div>
+
                 <div class="form-checkbox">
                   <input type="checkbox" id="notifPushEnabled" checked>
                   <label for="notifPushEnabled">Enable Real-Time Browser Push Alerts</label>
@@ -567,8 +624,9 @@
                   <input type="checkbox" id="notifSoundAlarmEnabled" checked>
                   <label for="notifSoundAlarmEnabled">Enable Host Laptop Speaker Alarms (paplay/aplay)</label>
                 </div>
-                <div class="mt-3">
-                  <button id="notifReqPermBtn" class="btn btn-primary btn-sm">📲 Request Browser Notification Permission</button>
+                <div class="form-checkbox mt-2">
+                  <input type="checkbox" id="notifBrowserAudioEnabled" checked>
+                  <label for="notifBrowserAudioEnabled">Enable Browser Sound Chime on Alert (Web Audio)</label>
                 </div>
 
                 <div class="alarm-cooldowns-box mt-3" style="background: var(--bg-surface); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">

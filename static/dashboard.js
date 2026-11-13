@@ -40,7 +40,9 @@
       torch: false,
       resolution: '1280x720'
     },
-    activeEventData: null
+    activeEventData: null,
+    audioCtx: null,
+    browserAudioEnabled: true
   };
 
   // DOM Elements Cache
@@ -185,11 +187,29 @@
     DOM.notifSseStatusBadge = document.getElementById('notifSseStatusBadge');
     DOM.notifPushEnabled = document.getElementById('notifPushEnabled');
     DOM.notifSoundAlarmEnabled = document.getElementById('notifSoundAlarmEnabled');
+    DOM.notifBrowserAudioEnabled = document.getElementById('notifBrowserAudioEnabled');
     DOM.notifReqPermBtn = document.getElementById('notifReqPermBtn');
+    DOM.notifPermissionStatusBadge = document.getElementById('notifPermissionStatusBadge');
     DOM.notifCdPerson = document.getElementById('notifCdPerson');
     DOM.notifCdAnimal = document.getElementById('notifCdAnimal');
     DOM.notifCdMotion = document.getElementById('notifCdMotion');
     DOM.notifEventTableBody = document.getElementById('notifEventTableBody');
+
+    // Phone Device Telemetry & Battery
+    DOM.topbarPhonePill = document.getElementById('topbarPhonePill');
+    DOM.topbarPhoneBatteryIcon = document.getElementById('topbarPhoneBatteryIcon');
+    DOM.topbarPhoneBatteryText = document.getElementById('topbarPhoneBatteryText');
+    DOM.topbarPhoneTempText = document.getElementById('topbarPhoneTempText');
+    DOM.overviewPhoneBadge = document.getElementById('overviewPhoneBadge');
+    DOM.overviewPhoneBatteryVal = document.getElementById('overviewPhoneBatteryVal');
+    DOM.overviewPhoneTempMeta = document.getElementById('overviewPhoneTempMeta');
+    DOM.overviewPhoneSensorsStatus = document.getElementById('overviewPhoneSensorsStatus');
+    DOM.livePhoneModel = document.getElementById('livePhoneModel');
+    DOM.livePhoneBattery = document.getElementById('livePhoneBattery');
+    DOM.livePhoneTemp = document.getElementById('livePhoneTemp');
+    DOM.livePhoneVolt = document.getElementById('livePhoneVolt');
+    DOM.livePhoneOptics = document.getElementById('livePhoneOptics');
+    DOM.livePhoneSensorHint = document.getElementById('livePhoneSensorHint');
 
     // Phone Audio Monitoring
     DOM.testAudioBtn = document.getElementById('testAudioBtn');
@@ -356,6 +376,83 @@
     }, duration);
   }
 
+  function playBrowserAlertChime(category) {
+    if (!state.browserAudioEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!state.audioCtx) {
+        state.audioCtx = new AudioCtx();
+      }
+      if (state.audioCtx.state === 'suspended') {
+        state.audioCtx.resume();
+      }
+
+      const now = state.audioCtx.currentTime;
+      const osc = state.audioCtx.createOscillator();
+      const gain = state.audioCtx.createGain();
+
+      const isHighPriority = (category === 'Person' || category === 'Monkey' || category === 'Animal');
+      osc.type = isHighPriority ? 'sawtooth' : 'sine';
+      osc.frequency.setValueAtTime(isHighPriority ? 920 : 660, now);
+      osc.frequency.exponentialRampToValueAtTime(isHighPriority ? 440 : 330, now + 0.3);
+
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      osc.connect(gain);
+      gain.connect(state.audioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.35);
+    } catch (e) {
+      console.debug('Browser audio synth chime error:', e);
+    }
+  }
+
+  function dispatchBrowserNotification(type, data) {
+    if (!data) return;
+    const cat = data.category || (type === 'alarm' ? 'Host Alarm' : 'Motion');
+    const label = data.label || cat;
+    const confStr = data.confidence ? ` (${(data.confidence * 100).toFixed(0)}%)` : '';
+    const title = `🚨 PySURVEILLANCE: ${cat} Detected`;
+    const body = `${label}${confStr} — ${new Date().toLocaleTimeString()}`;
+
+    // 1. Play audible Web Audio chime in browser
+    playBrowserAlertChime(cat);
+
+    // 2. Trigger native OS Desktop Notification if permission granted
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        const n = new Notification(title, {
+          body: body,
+          icon: '/static/favicon.svg',
+          badge: '/static/favicon.svg',
+          tag: `pysurv-${data.id || Date.now()}`,
+          renotify: true
+        });
+        n.onclick = () => {
+          window.focus();
+          navigateToView('incidents');
+          if (data.id && typeof window.PySurveillance?.inspectEvent === 'function') {
+            window.PySurveillance.inspectEvent(data.id);
+          }
+          n.close();
+        };
+      } catch (err) {
+        console.warn('Native desktop notification dispatch error:', err);
+      }
+    }
+
+    // 3. Show In-App Push Banner
+    showPushBanner({
+      id: data.id,
+      title: title,
+      body: body,
+      category: cat
+    });
+  }
+
   function showPushBanner(eventData) {
     if (!DOM.pushBannerContainer) return;
     const card = document.createElement('div');
@@ -369,6 +466,9 @@
     `;
     card.onclick = () => {
       navigateToView('incidents');
+      if (eventData.id && typeof window.PySurveillance?.inspectEvent === 'function') {
+        window.PySurveillance.inspectEvent(eventData.id);
+      }
       card.remove();
     };
     DOM.pushBannerContainer.appendChild(card);
@@ -797,6 +897,86 @@
     if (night.min_area && DOM.detMinArea) DOM.detMinArea.textContent = `${night.min_area} px²`;
     if (night.active_mode && DOM.detActiveProfile) DOM.detActiveProfile.textContent = night.active_mode.toUpperCase();
     if (night.measured_brightness && DOM.detMeasuredLux) DOM.detMeasuredLux.textContent = `${night.measured_brightness.toFixed(1)} lux`;
+
+    // Redmi 10 Phone Telemetry & Battery
+    const phone = s.phone_device || {};
+    const phoneOk = phone.is_online !== undefined ? !!phone.is_online : camOk;
+    const hasSensors = !!phone.sensors_logging_enabled;
+    const battLevel = phone.battery_level;
+    const battTemp = phone.battery_temp;
+    const battVolt = phone.battery_voltage;
+
+    if (DOM.topbarPhonePill) {
+      if (battLevel !== null && battLevel !== undefined) {
+        DOM.topbarPhoneBatteryText.textContent = `BATTERY: ${battLevel}%`;
+        if (DOM.topbarPhoneBatteryIcon) {
+          DOM.topbarPhoneBatteryIcon.textContent = battLevel < 20 ? '🪫' : (battLevel < 50 ? '🔋' : '⚡');
+        }
+      } else {
+        DOM.topbarPhoneBatteryText.textContent = phoneOk ? 'REDMI 10: ONLINE' : 'REDMI 10: OFFLINE';
+      }
+
+      if (DOM.topbarPhoneTempText) {
+        if (battTemp !== null && battTemp !== undefined) {
+          DOM.topbarPhoneTempText.style.display = 'inline-block';
+          DOM.topbarPhoneTempText.textContent = `🌡️ ${battTemp}°C`;
+        } else {
+          DOM.topbarPhoneTempText.style.display = 'none';
+        }
+      }
+    }
+
+    if (DOM.overviewPhoneBadge) {
+      DOM.overviewPhoneBadge.className = `stat-badge ${phoneOk ? 'badge-primary' : 'badge-danger'}`;
+      DOM.overviewPhoneBadge.textContent = phoneOk ? (hasSensors ? 'LIVE SENSORS' : 'ONLINE') : 'OFFLINE';
+    }
+    if (DOM.overviewPhoneBatteryVal) {
+      if (battLevel !== null && battLevel !== undefined) {
+        DOM.overviewPhoneBatteryVal.textContent = `${battLevel}%`;
+        DOM.overviewPhoneBatteryVal.style.color = battLevel < 20 ? '#ef4444' : (battLevel < 50 ? '#f59e0b' : '#38bdf8');
+      } else {
+        DOM.overviewPhoneBatteryVal.textContent = phoneOk ? 'Connected' : 'Offline';
+        DOM.overviewPhoneBatteryVal.style.color = '#38bdf8';
+      }
+    }
+    if (DOM.overviewPhoneTempMeta) {
+      if (battTemp !== null && battTemp !== undefined) {
+        DOM.overviewPhoneTempMeta.textContent = `Temp: ${battTemp}°C | Voltage: ${battVolt ? battVolt + ' V' : '--'}`;
+      } else {
+        DOM.overviewPhoneTempMeta.textContent = `Model: Redmi 10 | Target: ${phone.phone_ip || '192.168.31.211'}`;
+      }
+    }
+    if (DOM.overviewPhoneSensorsStatus) {
+      if (hasSensors) {
+        DOM.overviewPhoneSensorsStatus.innerHTML = `<span style="color: #4ade80;">● Live sensors active</span> (${phone.video_connections || 1} video stream)`;
+      } else {
+        DOM.overviewPhoneSensorsStatus.innerHTML = `<span style="color: #f59e0b;">ℹ️ Sensors Logging Inactive</span> • <a href="#monitoring" style="color: #38bdf8; text-decoration: underline;">How to enable</a>`;
+      }
+    }
+
+    if (DOM.livePhoneModel) DOM.livePhoneModel.textContent = phone.model || 'Redmi 10 (IP Webcam)';
+    if (DOM.livePhoneBattery) {
+      DOM.livePhoneBattery.textContent = (battLevel !== null && battLevel !== undefined) ? `${battLevel}%` : 'Logging Inactive';
+      if (battLevel !== null) {
+        DOM.livePhoneBattery.style.color = battLevel < 20 ? '#ef4444' : (battLevel < 50 ? '#f59e0b' : '#22c55e');
+      }
+    }
+    if (DOM.livePhoneTemp) {
+      DOM.livePhoneTemp.textContent = (battTemp !== null && battTemp !== undefined) ? `${battTemp} °C` : '-- °C';
+      if (battTemp !== null) {
+        DOM.livePhoneTemp.style.color = battTemp > 42 ? '#ef4444' : (battTemp > 38 ? '#f59e0b' : '#38bdf8');
+      }
+    }
+    if (DOM.livePhoneVolt) {
+      DOM.livePhoneVolt.textContent = (battVolt !== null && battVolt !== undefined) ? `${battVolt} V` : '-- V';
+    }
+    if (DOM.livePhoneOptics) {
+      DOM.livePhoneOptics.textContent = `ISO ${phone.iso || 100} • f/${phone.aperture || '1.8'} • ${phone.video_size || '1080p'}`;
+    }
+    if (DOM.livePhoneSensorHint) {
+      DOM.livePhoneSensorHint.textContent = phone.sensor_help_hint || (hasSensors ? 'Live sensors active.' : 'In IP Webcam: Settings ➔ Data logging ➔ Log sensors to view battery % & temp.');
+      DOM.livePhoneSensorHint.style.color = hasSensors ? '#4ade80' : '#94a3b8';
+    }
 
     // Database Status
     const dbOk = s.database_healthy !== false;
@@ -1560,12 +1740,37 @@
     } catch (err) {}
   }
 
+  function checkNotificationPermission() {
+    if (!('Notification' in window)) {
+      if (DOM.notifPermissionStatusBadge) {
+        DOM.notifPermissionStatusBadge.textContent = 'NOT SUPPORTED';
+        DOM.notifPermissionStatusBadge.className = 'badge badge-warning';
+      }
+      return;
+    }
+    const perm = Notification.permission;
+    if (DOM.notifPermissionStatusBadge) {
+      if (perm === 'granted') {
+        DOM.notifPermissionStatusBadge.textContent = '✅ ACTIVE (GRANTED)';
+        DOM.notifPermissionStatusBadge.className = 'badge badge-success';
+      } else if (perm === 'denied') {
+        DOM.notifPermissionStatusBadge.textContent = '❌ BLOCKED IN BROWSER';
+        DOM.notifPermissionStatusBadge.className = 'badge badge-danger';
+        DOM.notifPermissionStatusBadge.title = 'Notifications are blocked. Click the lock/site settings icon in your address bar to allow.';
+      } else {
+        DOM.notifPermissionStatusBadge.textContent = '⚠️ NOT YET GRANTED';
+        DOM.notifPermissionStatusBadge.className = 'badge badge-warning';
+      }
+    }
+  }
+
   function initNotificationsHandlers() {
-    // Topbar bell button toggle
+    checkNotificationPermission();
+
     if (DOM.togglePushNavBtn) {
       DOM.togglePushNavBtn.addEventListener('click', async () => {
-        const cur = DOM.togglePushNavBtn.classList.contains('active');
-        const next = !cur;
+        const currentActive = DOM.togglePushNavBtn.classList.contains('active');
+        const next = !currentActive;
         const res = await apiFetch('/api/push/toggle', {
           method: 'POST',
           body: { enabled: next }
@@ -1611,29 +1816,60 @@
       });
     }
 
+    if (DOM.notifBrowserAudioEnabled) {
+      DOM.notifBrowserAudioEnabled.addEventListener('change', (e) => {
+        state.browserAudioEnabled = e.target.checked;
+        showToast(`Browser sound chime ${state.browserAudioEnabled ? 'enabled' : 'muted'}`, 'info');
+      });
+    }
+
     if (DOM.notifReqPermBtn) {
       DOM.notifReqPermBtn.addEventListener('click', async () => {
         if (!('Notification' in window)) {
           showToast('This browser does not support desktop notifications', 'warning');
           return;
         }
-        const perm = await Notification.requestPermission();
-        if (perm === 'granted') {
-          showToast('Desktop notification permission granted', 'success');
-        } else {
-          showToast(`Notification permission: ${perm}`, 'warning');
+        try {
+          const perm = await Notification.requestPermission();
+          checkNotificationPermission();
+          if (perm === 'granted') {
+            showToast('Desktop notification permission granted! Testing alert...', 'success');
+            dispatchBrowserNotification('test', {
+              id: 999999,
+              category: 'Person',
+              label: 'Desktop Notifications Enabled Successfully',
+              confidence: 0.99
+            });
+          } else if (perm === 'denied') {
+            showToast('Notifications blocked. Click the lock icon in your address bar to Allow 🔒', 'danger');
+          } else {
+            showToast(`Notification permission: ${perm}`, 'warning');
+          }
+        } catch (err) {
+          showToast('Failed to request notification permission', 'danger');
         }
       });
     }
 
     if (DOM.notifTestPushBtn) {
       DOM.notifTestPushBtn.addEventListener('click', async () => {
-        const res = await apiFetch('/api/push/test', { method: 'POST' });
-        if (res.ok) {
-          showToast('Dispatched test alert to all connected browsers', 'info');
-        } else if (res.status === 401) {
-          openPinModal();
-        }
+        // Immediate local dispatch for instant visual and audio verification
+        dispatchBrowserNotification('test', {
+          id: 999999,
+          category: 'Person',
+          label: 'Test Alert: Person Detected near Monitored Perimeter',
+          confidence: 0.98
+        });
+
+        // Also broadcast via backend SSE
+        try {
+          const res = await apiFetch('/api/push/test', { method: 'POST' });
+          if (res.ok) {
+            showToast('Test push notification dispatched!', 'success');
+          } else if (res.status === 401) {
+            openPinModal();
+          }
+        } catch (err) {}
       });
     }
 
@@ -1912,17 +2148,37 @@
       }
     };
 
+    const handleIncomingMessage = (type, data) => {
+      if (type === 'detection' || type === 'detection_update' || type === 'alarm' || type === 'test') {
+        dispatchBrowserNotification(type, data);
+        fetchEvents();
+      } else if (type === 'event_completed') {
+        fetchEvents();
+      } else if (type === 'push_config') {
+        fetchPushStatus();
+      } else if (type === 'status' || type === 'telemetry') {
+        renderStatus(data);
+      }
+    };
+
     state.eventSource.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'incident' || data.type === 'event' || data.event || data.category) {
-          showPushBanner(data);
-          fetchEvents();
-        } else if (data.type === 'status' || data.type === 'telemetry') {
-          renderStatus(data);
-        }
+        const payload = JSON.parse(event.data);
+        const type = payload.type || 'detection';
+        const data = payload.data || payload;
+        handleIncomingMessage(type, data);
       } catch (e) {}
     };
+
+    // Explicit listeners for SSE named event streams
+    ['detection', 'detection_update', 'event_completed', 'alarm', 'push_config', 'test'].forEach(evt => {
+      state.eventSource.addEventListener(evt, (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          handleIncomingMessage(evt, data);
+        } catch (err) {}
+      });
+    });
 
     state.eventSource.onerror = () => {
       if (DOM.notifSseStatusBadge) {
@@ -2076,7 +2332,9 @@
     // Export inspect & delete functions for inline onclick handlers
     window.PySurveillance = {
       inspectEvent,
-      deleteEvent
+      deleteEvent,
+      navigateToView,
+      dispatchBrowserNotification
     };
 
     // Initial Hash View

@@ -103,6 +103,7 @@ class PushBroadcaster:
             # Initial handshake
             handshake = json.dumps(
                 {
+                    "type": "handshake",
                     "status": "connected",
                     "push_enabled": app_config.push.get("enabled", True),
                     "browser_audio": app_config.push.get("browser_audio", True),
@@ -111,11 +112,18 @@ class PushBroadcaster:
                 }
             )
             yield f"event: handshake\ndata: {handshake}\n\n"
+            yield f"data: {handshake}\n\n"
 
             while True:
                 try:
                     msg = await asyncio.wait_for(q.get(), timeout=15.0)
-                    yield f"event: {msg['type']}\ndata: {json.dumps(msg['data'])}\n\n"
+                    data_obj = dict(msg["data"]) if isinstance(msg.get("data"), dict) else {"content": msg.get("data")}
+                    data_obj.setdefault("type", msg["type"])
+                    data_obj.setdefault("timestamp", msg.get("timestamp", time.time()))
+                    payload_str = json.dumps(data_obj)
+                    # Yield both custom named event and generic message for maximum client compatibility
+                    yield f"event: {msg['type']}\ndata: {payload_str}\n\n"
+                    yield f"data: {payload_str}\n\n"
                 except asyncio.TimeoutError:
                     # Keep-alive heartbeat comment to prevent client/proxy timeout
                     yield ": keepalive\n\n"
