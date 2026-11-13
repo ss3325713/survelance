@@ -18,16 +18,13 @@
     "port": 8000,
     "dashboard_pin": "****",
     "pin_required": true,
-    "session_secret": "7672e488857cbe0efb3a4d1ccf1cfffddd2a3779cab2a3d139a928e0e04848c0",
-    "restrict_local_network": true,
-    "dashboard_pin_hash": "86667b5c9c4d21259de9dc1882bc5c1154c78aacefeabbc0389e1295155eb36c",
-    "dashboard_pin_salt": "e96e2ec1134561b631a2a46cfd152bcd"
+    "restrict_local_network": true
   },
   "pipeline": {
     "target_width": 1280,
     "target_height": 720,
     "motion_fps": 8.0,
-    "motion_threshold": 28,
+    "motion_threshold": 35,
     "min_motion_area": 250,
     "max_motion_percent": 22.0,
     "require_motion_overlap": true,
@@ -35,7 +32,8 @@
     "detection_confidence": 0.45,
     "auto_throttle_cpu": true,
     "cpu_throttle_threshold": 85.0,
-    "monkey_model_path": "models/monkey_classifier.onnx"
+    "monkey_model_path": "models/monkey_classifier.onnx",
+    "min_confidence": 0.6
   },
   "image_controls": {
     "resolution": "1280x720",
@@ -46,7 +44,7 @@
     "contrast": 1.1,
     "auto_hdr": false,
     "white_balance": "auto",
-    "torch": true,
+    "torch": false,
     "night_vision": false
   },
   "alarm": {

@@ -36,7 +36,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "server": {
         "host": "0.0.0.0",
         "port": 8000,
-        "dashboard_pin": "1234",
+        "dashboard_pin": "****",
+        "dashboard_pin_hash": "332c18391f45bddd13dce01c2c3cc495f6b3909ed1bf5747d73a89417c9875e7",
+        "dashboard_pin_salt": "4df8d1525a685686ef4bac8de8b74d1b",
         "pin_required": True,
         "session_secret": secrets.token_hex(32),
         "restrict_local_network": True,
@@ -238,6 +240,11 @@ class Config:
                 h, s = hash_pin(str(new_pin))
                 updates["server"]["dashboard_pin_hash"] = h
                 updates["server"]["dashboard_pin_salt"] = s
+                updates["server"]["dashboard_pin"] = "****"
+            else:
+                if "dashboard_pin_hash" in self._data.get("server", {}):
+                    updates["server"].setdefault("dashboard_pin_hash", self._data["server"]["dashboard_pin_hash"])
+                    updates["server"].setdefault("dashboard_pin_salt", self._data["server"]["dashboard_pin_salt"])
                 updates["server"]["dashboard_pin"] = "****"
         self._data = self._merge_defaults(self._data, updates)
         self.save()
